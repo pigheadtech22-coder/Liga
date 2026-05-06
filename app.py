@@ -1592,6 +1592,7 @@ elif pagina == "📺  Pantalla TV":
                             mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=42)
                         with cn:
                             st.markdown(f"**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**")
+                        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
                     if c.get("resultado"):
                         r = c["resultado"]
