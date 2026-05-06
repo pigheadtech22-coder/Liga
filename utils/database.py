@@ -58,7 +58,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS jornadas (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            torneo_id  INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+            torneo_id  INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
             numero     INTEGER NOT NULL,
             fecha      TEXT    DEFAULT '',
             completada INTEGER DEFAULT 0
@@ -98,6 +98,30 @@ def init_db():
         columnas_torneos = {
             row["name"] for row in conn.execute("PRAGMA table_info(torneos)").fetchall()
         }
+
+        # Migra instalaciones antiguas donde jornadas.torneo_id referenciaba mal a jornadas(id).
+        fk_jornadas = conn.execute("PRAGMA foreign_key_list(jornadas)").fetchall()
+        fk_torneo_tabla = fk_jornadas[0][2] if fk_jornadas else ""
+        if fk_torneo_tabla != "torneos":
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.executescript("""
+            CREATE TABLE IF NOT EXISTS jornadas_fix (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                torneo_id  INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+                numero     INTEGER NOT NULL,
+                fecha      TEXT    DEFAULT '',
+                completada INTEGER DEFAULT 0
+            );
+
+            INSERT INTO jornadas_fix (id, torneo_id, numero, fecha, completada)
+            SELECT id, torneo_id, numero, fecha, completada
+            FROM jornadas;
+
+            DROP TABLE jornadas;
+            ALTER TABLE jornadas_fix RENAME TO jornadas;
+            """)
+            conn.execute("PRAGMA foreign_keys = ON")
+
         if "logo_left_path" not in columnas_torneos:
             conn.execute("ALTER TABLE torneos ADD COLUMN logo_left_path TEXT DEFAULT ''")
         if "logo_right_path" not in columnas_torneos:
@@ -273,6 +297,15 @@ def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
         conn.execute(
             "INSERT INTO asignaciones (cancha_jornada_id, jugador_id, posicion) VALUES (?,?,?)",
             (cancha_jornada_id, jugador_id, posicion),
+        )
+
+
+def actualizar_horario_cancha(cancha_jornada_id: int, horario: str):
+    """Actualiza el horario de una cancha puntual dentro de una jornada."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE canchas_jornada SET horario=? WHERE id=?",
+            (horario, cancha_jornada_id),
         )
 
 
