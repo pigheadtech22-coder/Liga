@@ -1362,6 +1362,14 @@ elif pagina == "📺  Pantalla TV":
             div[data-testid="stVerticalBlockBorderWrapper"] {
                 height:100% !important;
                 overflow:hidden;
+                border:1.5px solid rgba(0, 220, 255, 0.55) !important;
+                border-radius:10px !important;
+                background:
+                    linear-gradient(180deg, rgba(0, 220, 255, 0.08), rgba(0, 220, 255, 0.02)) !important;
+                box-shadow:
+                    0 0 0 1px rgba(0, 220, 255, 0.12) inset,
+                    0 0 10px rgba(0, 220, 255, 0.18),
+                    0 0 20px rgba(0, 220, 255, 0.08) !important;
             }
             div[data-testid="stVerticalBlock"] {
                 height:100%;
