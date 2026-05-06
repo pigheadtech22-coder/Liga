@@ -1395,7 +1395,8 @@ elif pagina == "📺  Pantalla TV":
         if _tv_header_rel:
             _tv_header_path = resolver_ruta(_tv_header_rel)
             if _tv_header_path.exists():
-                st.image(str(_tv_header_path), use_container_width=True)
+                _col_l, _col_c, _col_r = st.columns([0.3, 0.4, 0.3])
+                _col_c.image(str(_tv_header_path), use_container_width=True)
             else:
                 _tv_header_rel = ""
         if not _tv_header_rel:
