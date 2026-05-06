@@ -1428,34 +1428,21 @@ elif pagina == "📺  Pantalla TV":
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
             _total = len(_sponsor_rutas)
-            # Layout compacto/adaptativo para no romper el viewport 100% en TV
-            if _total <= 4:
-                _por_fila = _total
-                _render_w = 150
-                _tile_h = 54
-            elif _total <= 6:
-                _por_fila = 3
-                _render_w = 132
-                _tile_h = 50
-            else:
-                _por_fila = 4
-                _render_w = 114
-                _tile_h = 46
+            _sp_cols = st.columns(_total)
 
-            for _ini in range(0, len(_sponsor_rutas), _por_fila):
-                _fila = _sponsor_rutas[_ini:_ini + _por_fila]
-                _sp_cols = st.columns(len(_fila))
-                for _si, _sruta in enumerate(_fila):
-                    with _sp_cols[_si]:
-                        st.image(
-                            _logo_tile_bytes(
-                                str(_sruta),
-                                canvas_w=_render_w * 3,
-                                canvas_h=_tile_h * 3,
-                                padding=10,
-                            ),
-                            width=_render_w,
-                        )
+            # Todos en una sola franja y alineados: mismo lienzo/tamaño para cada logo.
+            _tile_h = 44 if _total >= 7 else 52
+            for _si, _sruta in enumerate(_sponsor_rutas):
+                with _sp_cols[_si]:
+                    st.image(
+                        _logo_tile_bytes(
+                            str(_sruta),
+                            canvas_w=360,
+                            canvas_h=_tile_h * 3,
+                            padding=10,
+                        ),
+                        use_container_width=True,
+                    )
 
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: CONFIGURACIÓN
