@@ -6,7 +6,6 @@ Ejecutar: streamlit run app.py
 import tempfile
 import os
 import io
-import base64
 import time
 from urllib.parse import urlencode
 from datetime import date
@@ -68,6 +67,35 @@ def _logo_tile_bytes(path_str: str, canvas_w: int = 380, canvas_h: int = 130, pa
             buff = io.BytesIO()
             tile.save(buff, format="PNG", optimize=True)
             return buff.getvalue()
+    finally:
+        _PILImage.MAX_IMAGE_PIXELS = limite_original
+
+
+@st.cache_data(show_spinner=False)
+def _sponsor_strip_bytes(path_list: tuple[str, ...], cell_w: int = 320, cell_h: int = 210, padding: int = 2) -> bytes:
+    """Crea una tira única de logos (sin espacios entre celdas) sobre fondo blanco."""
+    limite_original = _PILImage.MAX_IMAGE_PIXELS
+    try:
+        _PILImage.MAX_IMAGE_PIXELS = None
+        total_w = max(1, cell_w * max(1, len(path_list)))
+        strip = _PILImage.new("RGBA", (total_w, cell_h), (255, 255, 255, 255))
+
+        for idx, path_str in enumerate(path_list):
+            with _PILImage.open(path_str) as img:
+                if img.mode != "RGBA":
+                    img = img.convert("RGBA")
+                max_w = max(1, cell_w - (padding * 2))
+                max_h = max(1, cell_h - (padding * 2))
+                img.thumbnail((max_w, max_h), _PILImage.LANCZOS)
+
+                x0 = idx * cell_w
+                x = x0 + ((cell_w - img.width) // 2)
+                y = (cell_h - img.height) // 2
+                strip.paste(img, (x, y), img)
+
+        buff = io.BytesIO()
+        strip.save(buff, format="PNG", optimize=True)
+        return buff.getvalue()
     finally:
         _PILImage.MAX_IMAGE_PIXELS = limite_original
 
@@ -1432,7 +1460,7 @@ elif pagina == "📺  Pantalla TV":
                     for j in jugadores_orden:
                         cf, cn = st.columns([1, 4])
                         with cf:
-                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=38)
+                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=44)
                         with cn:
                             st.markdown(f"**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**")
 
@@ -1460,29 +1488,14 @@ elif pagina == "📺  Pantalla TV":
             _total = len(_sponsor_rutas)
             _tile_h = 102 if _total <= 3 else (88 if _total <= 5 else 74)
 
-            # Franja única, logos pegados y llenando todo el ancho disponible.
-            _items_html = []
-            for _sruta in _sponsor_rutas:
-                _png = _logo_tile_bytes(
-                    str(_sruta),
-                    canvas_w=360,
-                    canvas_h=_tile_h * 3,
-                    padding=2,
-                )
-                _b64 = base64.b64encode(_png).decode("ascii")
-                _items_html.append(
-                    "<div style='flex:1 1 0;min-width:0;margin:0;padding:0;'>"
-                    f"<img src='data:image/png;base64,{_b64}' "
-                    f"style='display:block;width:100%;height:{_tile_h}px;object-fit:contain;margin:0;padding:0;'/>"
-                    "</div>"
-                )
-
-            st.markdown(
-                "<div style='display:flex;gap:0;align-items:stretch;justify-content:stretch;width:100%;margin:0;padding:0;'>"
-                + "".join(_items_html)
-                + "</div>",
-                unsafe_allow_html=True,
+            # Tira única para eliminar cualquier separación visual entre logos.
+            _strip_png = _sponsor_strip_bytes(
+                tuple(str(p) for p in _sponsor_rutas),
+                cell_w=340,
+                cell_h=_tile_h * 3,
+                padding=2,
             )
+            st.image(_strip_png, use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: CONFIGURACIÓN
