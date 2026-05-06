@@ -1248,23 +1248,23 @@ elif pagina == "📺  Pantalla TV":
 
         _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
         _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
-        _top_cols = st.columns(3)
+        _top_wrap = st.columns([2, 1, 1, 1, 2])
 
-        with _top_cols[0]:
+        with _top_wrap[1]:
             if _top_left and _top_left.exists():
-                st.image(_logo_tile_bytes(str(_top_left), canvas_w=390, canvas_h=120, padding=12), width=126)
+                st.image(_logo_tile_bytes(str(_top_left), canvas_w=360, canvas_h=114, padding=8), width=136)
             else:
                 st.markdown("&nbsp;", unsafe_allow_html=True)
 
-        with _top_cols[1]:
+        with _top_wrap[2]:
             if _wm_path.exists():
-                st.image(_logo_tile_bytes(str(_wm_path), canvas_w=390, canvas_h=120, padding=12), width=126)
+                st.image(_logo_tile_bytes(str(_wm_path), canvas_w=360, canvas_h=114, padding=8), width=136)
             else:
                 st.markdown("&nbsp;", unsafe_allow_html=True)
 
-        with _top_cols[2]:
+        with _top_wrap[3]:
             if _top_right and _top_right.exists():
-                st.image(_logo_tile_bytes(str(_top_right), canvas_w=390, canvas_h=120, padding=12), width=126)
+                st.image(_logo_tile_bytes(str(_top_right), canvas_w=360, canvas_h=114, padding=8), width=136)
             else:
                 st.markdown("&nbsp;", unsafe_allow_html=True)
 
@@ -1457,16 +1457,17 @@ elif pagina == "📺  Pantalla TV":
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
             _total = len(_sponsor_rutas)
-            _tile_h = 78 if _total <= 3 else (68 if _total <= 5 else 56)
+            _tile_h = 92 if _total <= 3 else (80 if _total <= 5 else 66)
+            _tile_w = 320 if _total <= 3 else (300 if _total <= 5 else 280)
 
             # Franja única, logos pegados y llenando todo el ancho disponible.
             _items_html = []
             for _sruta in _sponsor_rutas:
                 _png = _logo_tile_bytes(
                     str(_sruta),
-                    canvas_w=420,
+                    canvas_w=_tile_w,
                     canvas_h=_tile_h * 3,
-                    padding=10,
+                    padding=4,
                 )
                 _b64 = base64.b64encode(_png).decode("ascii")
                 _items_html.append(
