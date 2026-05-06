@@ -6,6 +6,7 @@ Ejecutar: streamlit run app.py
 import tempfile
 import os
 import io
+import base64
 import time
 from urllib.parse import urlencode
 from datetime import date
@@ -1456,32 +1457,31 @@ elif pagina == "📺  Pantalla TV":
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
             _total = len(_sponsor_rutas)
-            _render_w = 160 if _total <= 3 else (136 if _total <= 5 else 114)
+            _tile_h = 78 if _total <= 3 else (68 if _total <= 5 else 56)
 
-            # Mantener una sola franja pero centrada cuando hay pocos logos.
-            if _total < 8:
-                _left_pad = (8 - _total) // 2
-                _right_pad = 8 - _total - _left_pad
-                _spec = ([1] * _left_pad) + ([2] * _total) + ([1] * _right_pad)
-                _sp_cols = st.columns(_spec)
-                _start_idx = _left_pad
-            else:
-                _sp_cols = st.columns(_total)
-                _start_idx = 0
+            # Franja única, logos pegados y llenando todo el ancho disponible.
+            _items_html = []
+            for _sruta in _sponsor_rutas:
+                _png = _logo_tile_bytes(
+                    str(_sruta),
+                    canvas_w=420,
+                    canvas_h=_tile_h * 3,
+                    padding=10,
+                )
+                _b64 = base64.b64encode(_png).decode("ascii")
+                _items_html.append(
+                    "<div style='flex:1 1 0;min-width:0;margin:0;padding:0;'>"
+                    f"<img src='data:image/png;base64,{_b64}' "
+                    f"style='display:block;width:100%;height:{_tile_h}px;object-fit:contain;margin:0;padding:0;'/>"
+                    "</div>"
+                )
 
-            # Todos en una sola franja y alineados: mismo lienzo/tamaño para cada logo.
-            _tile_h = 44 if _total >= 7 else 52
-            for _si, _sruta in enumerate(_sponsor_rutas):
-                with _sp_cols[_start_idx + _si]:
-                    st.image(
-                        _logo_tile_bytes(
-                            str(_sruta),
-                            canvas_w=360,
-                            canvas_h=_tile_h * 3,
-                            padding=10,
-                        ),
-                        width=_render_w,
-                    )
+            st.markdown(
+                "<div style='display:flex;gap:0;align-items:stretch;justify-content:stretch;width:100%;margin:0;padding:0;'>"
+                + "".join(_items_html)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
 
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: CONFIGURACIÓN
