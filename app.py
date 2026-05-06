@@ -44,6 +44,32 @@ def _mostrar_imagen(path: Path, **kwargs):
             raise
         st.image(_img_preview_bytes(str(path)), **kwargs)
 
+
+@st.cache_data(show_spinner=False)
+def _logo_tile_bytes(path_str: str, canvas_w: int = 380, canvas_h: int = 130, padding: int = 14) -> bytes:
+    """Normaliza logos a un lienzo blanco uniforme manteniendo proporción."""
+    limite_original = _PILImage.MAX_IMAGE_PIXELS
+    try:
+        _PILImage.MAX_IMAGE_PIXELS = None
+        with _PILImage.open(path_str) as img:
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+
+            max_w = max(1, canvas_w - (padding * 2))
+            max_h = max(1, canvas_h - (padding * 2))
+            img.thumbnail((max_w, max_h), _PILImage.LANCZOS)
+
+            tile = _PILImage.new("RGBA", (canvas_w, canvas_h), (255, 255, 255, 255))
+            x = (canvas_w - img.width) // 2
+            y = (canvas_h - img.height) // 2
+            tile.paste(img, (x, y), img)
+
+            buff = io.BytesIO()
+            tile.save(buff, format="PNG", optimize=True)
+            return buff.getvalue()
+    finally:
+        _PILImage.MAX_IMAGE_PIXELS = limite_original
+
 from utils.database import (
     init_db,
     crear_torneo, listar_torneos, obtener_torneo, actualizar_torneo, eliminar_torneo,
@@ -1401,10 +1427,13 @@ elif pagina == "📺  Pantalla TV":
                     _sponsor_rutas.append(_rp)
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
-            _sp_cols = st.columns(len(_sponsor_rutas))
-            for _si, _sruta in enumerate(_sponsor_rutas):
-                with _sp_cols[_si]:
-                    _mostrar_imagen(_sruta, width=90)
+            _por_fila = 4
+            for _ini in range(0, len(_sponsor_rutas), _por_fila):
+                _fila = _sponsor_rutas[_ini:_ini + _por_fila]
+                _sp_cols = st.columns(len(_fila))
+                for _si, _sruta in enumerate(_fila):
+                    with _sp_cols[_si]:
+                        st.image(_logo_tile_bytes(str(_sruta)), use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: CONFIGURACIÓN
