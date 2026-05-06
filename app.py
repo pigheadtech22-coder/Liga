@@ -7,6 +7,7 @@ import tempfile
 import os
 import io
 import time
+from urllib.parse import urlencode
 from datetime import date
 from pathlib import Path
 
@@ -214,7 +215,9 @@ with st.sidebar:
         "📺  Pantalla TV",
         "⚙️  Configuración",
     ]
-    pagina = st.radio("Navegación", PAGINAS, label_visibility="collapsed")
+    query_view = str(st.query_params.get("view", "")).strip().lower()
+    pagina_default = "📺  Pantalla TV" if query_view == "tv" else "🏠  Inicio"
+    pagina = st.radio("Navegación", PAGINAS, index=PAGINAS.index(pagina_default), label_visibility="collapsed")
 
     if torneo:
         jornadas_sidebar = listar_jornadas(torneo["id"])
@@ -1150,7 +1153,21 @@ elif pagina == "📺  Pantalla TV":
         st.stop()
 
     opciones = {f"Jornada {j['numero']} — {j['fecha']}": j for j in reversed(jornadas)}
-    jornada_sel = opciones[st.selectbox("Jornada a mostrar", list(opciones.keys()), key="tv_jornada")]
+    labels_jornada = list(opciones.keys())
+    qp_jornada_id = 0
+    try:
+        qp_jornada_id = int(str(st.query_params.get("jornada_id", "0")))
+    except Exception:
+        qp_jornada_id = 0
+    idx_default_j = 0
+    if qp_jornada_id:
+        for pos, lbl in enumerate(labels_jornada):
+            if int(opciones[lbl]["id"]) == qp_jornada_id:
+                idx_default_j = pos
+                break
+    jornada_sel = opciones[
+        st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
+    ]
     canchas = obtener_canchas_jornada(jornada_sel["id"])
     if not canchas:
         st.info("La jornada no tiene canchas cargadas.")
@@ -1161,31 +1178,24 @@ elif pagina == "📺  Pantalla TV":
         st.session_state["tv_page_idx"] = 0
         st.session_state["tv_last_switch_ts"] = time.time()
 
-    st.markdown(
-        """
-        <style>
-        .tv-card {
-            background: linear-gradient(165deg, #1e50a0 0%, #2d6cc7 100%);
-            border-radius: 14px;
-            padding: 12px;
-            color: white;
-            min-height: 205px;
-            margin-bottom: 10px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.14);
-        }
-        .tv-title { font-size: 1.05rem; font-weight: 700; }
-        .tv-horario { font-size: 0.82rem; opacity: 0.92; margin-bottom: 8px; }
-        .tv-player { font-size: 0.90rem; line-height: 1.35; }
-        .tv-result { font-size: 0.78rem; opacity: 0.95; margin-top: 8px; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     canchas_por_pagina = 10
     paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
+
+    qp_auto = str(st.query_params.get("auto", "")).strip().lower() in ("1", "true", "yes")
+    qp_hide = str(st.query_params.get("hide", "")).strip().lower() in ("1", "true", "yes")
+    try:
+        qp_interval = int(str(st.query_params.get("interval", "10")))
+    except Exception:
+        qp_interval = 10
+    if qp_interval not in [5, 8, 10, 12, 15, 20]:
+        qp_interval = 10
+
+    if str(st.query_params.get("view", "")).strip().lower() == "tv":
+        st.session_state["tv_auto"] = qp_auto
+        st.session_state["tv_interval"] = qp_interval
+        st.session_state["tv_hide_sidebar"] = qp_hide
 
     cnav1, cnav2, cnav3, cnav4 = st.columns([1, 1, 2, 2])
     if cnav1.button("◀ Anterior", use_container_width=True, disabled=(total_paginas == 1)):
@@ -1198,8 +1208,29 @@ elif pagina == "📺  Pantalla TV":
         st.rerun()
 
     auto_tv = cnav3.toggle("Auto carrusel", value=st.session_state.get("tv_auto", False), key="tv_auto")
-    intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=2, key="tv_interval")
+    idx_intervalo = [5, 8, 10, 12, 15, 20].index(st.session_state.get("tv_interval", 10))
+    intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=idx_intervalo, key="tv_interval")
     st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
+
+    tv_query = urlencode(
+        {
+            "view": "tv",
+            "jornada_id": int(jornada_sel["id"]),
+            "auto": 1 if auto_tv else 0,
+            "interval": int(intervalo),
+            "hide": 1 if st.session_state.get("tv_hide_sidebar", False) else 0,
+        }
+    )
+    st.text_input("Link TV (sufijo)", value=f"?{tv_query}", key="tv_share_suffix")
+    st.caption("Usa la URL base de la app + este sufijo. Ejemplo: https://tu-app.streamlit.app" + f"?{tv_query}")
+    if st.button("Aplicar estos parámetros al URL actual", use_container_width=True):
+        st.query_params.clear()
+        st.query_params["view"] = "tv"
+        st.query_params["jornada_id"] = str(int(jornada_sel["id"]))
+        st.query_params["auto"] = "1" if auto_tv else "0"
+        st.query_params["interval"] = str(int(intervalo))
+        st.query_params["hide"] = "1" if st.session_state.get("tv_hide_sidebar", False) else "0"
+        st.rerun()
 
     if auto_tv and total_paginas > 1:
         now = time.time()
@@ -1212,7 +1243,7 @@ elif pagina == "📺  Pantalla TV":
             st.rerun()
         st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
 
-    tv_full = st.toggle("Modo TV (ocultar sidebar)", value=False, key="tv_hide_sidebar")
+    tv_full = st.toggle("Modo TV (ocultar sidebar)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
     if tv_full:
         st.markdown(
             """
@@ -1235,32 +1266,24 @@ elif pagina == "📺  Pantalla TV":
                     continue
                 c = pagina_canchas[idx]
                 jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
-                jugadores_html = "".join(
-                    f"<div class='tv-player'>P{j.get('posicion', '-')}: {j.get('nombre', '-')}</div>"
-                    for j in jugadores_orden
-                )
-                resultado_html = ""
-                if c.get("resultado"):
-                    r = c["resultado"]
-                    resultado_html = (
-                        "<div class='tv-result'>"
-                        f"S1 {r['set1_a']}-{r['set1_b']} | "
-                        f"S2 {r['set2_a']}-{r['set2_b']} | "
-                        f"S3 {r['set3_a']}-{r['set3_b']}"
-                        "</div>"
-                    )
+                with st.container(border=True):
+                    st.markdown(f"### Cancha {c['numero_cancha']}")
+                    st.caption(f"⏰ {c.get('horario') or '-'}")
 
-                st.markdown(
-                    f"""
-                    <div class='tv-card'>
-                        <div class='tv-title'>Cancha {c['numero_cancha']}</div>
-                        <div class='tv-horario'>⏰ {c.get('horario') or '-'}</div>
-                        {jugadores_html}
-                        {resultado_html}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    for j in jugadores_orden:
+                        cf, cn = st.columns([1, 4])
+                        with cf:
+                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=38)
+                        with cn:
+                            st.markdown(f"**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**")
+
+                    if c.get("resultado"):
+                        r = c["resultado"]
+                        st.caption(
+                            f"S1 {r['set1_a']}-{r['set1_b']} | "
+                            f"S2 {r['set2_a']}-{r['set2_b']} | "
+                            f"S3 {r['set3_a']}-{r['set3_b']}"
+                        )
 
 
 # ═══════════════════════════════════════════════════════════════
