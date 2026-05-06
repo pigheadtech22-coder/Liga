@@ -1239,6 +1239,34 @@ elif pagina == "📺  Pantalla TV":
                 break
     if tv_readonly:
         jornada_sel = opciones[labels_jornada[idx_default_j]]
+
+        # Header superior: logos principales + logo de marca de agua PDF.
+        _logo_left_rel = torneo.get("logo_left_path") or torneo.get("logo_path", "")
+        _logo_right_rel = torneo.get("logo_right_path", "")
+        _wm_path = BASE_DIR / "assets" / "pighead_black.png"
+
+        _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
+        _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
+        _top_cols = st.columns(3)
+
+        with _top_cols[0]:
+            if _top_left and _top_left.exists():
+                st.image(_logo_tile_bytes(str(_top_left), canvas_w=390, canvas_h=120, padding=12), width=126)
+            else:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+
+        with _top_cols[1]:
+            if _wm_path.exists():
+                st.image(_logo_tile_bytes(str(_wm_path), canvas_w=390, canvas_h=120, padding=12), width=126)
+            else:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+
+        with _top_cols[2]:
+            if _top_right and _top_right.exists():
+                st.image(_logo_tile_bytes(str(_top_right), canvas_w=390, canvas_h=120, padding=12), width=126)
+            else:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+
         st.markdown(
             f"<p style='margin:0;padding:0;font-size:0.8rem;color:#888;'>"
             f"📅 Jornada {jornada_sel['numero']} — {jornada_sel['fecha']} &nbsp;|&nbsp; "
@@ -1428,12 +1456,23 @@ elif pagina == "📺  Pantalla TV":
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
             _total = len(_sponsor_rutas)
-            _sp_cols = st.columns(_total)
+            _render_w = 160 if _total <= 3 else (136 if _total <= 5 else 114)
+
+            # Mantener una sola franja pero centrada cuando hay pocos logos.
+            if _total < 8:
+                _left_pad = (8 - _total) // 2
+                _right_pad = 8 - _total - _left_pad
+                _spec = ([1] * _left_pad) + ([2] * _total) + ([1] * _right_pad)
+                _sp_cols = st.columns(_spec)
+                _start_idx = _left_pad
+            else:
+                _sp_cols = st.columns(_total)
+                _start_idx = 0
 
             # Todos en una sola franja y alineados: mismo lienzo/tamaño para cada logo.
             _tile_h = 44 if _total >= 7 else 52
             for _si, _sruta in enumerate(_sponsor_rutas):
-                with _sp_cols[_si]:
+                with _sp_cols[_start_idx + _si]:
                     st.image(
                         _logo_tile_bytes(
                             str(_sruta),
@@ -1441,7 +1480,7 @@ elif pagina == "📺  Pantalla TV":
                             canvas_h=_tile_h * 3,
                             padding=10,
                         ),
-                        use_container_width=True,
+                        width=_render_w,
                     )
 
 # ═══════════════════════════════════════════════════════════════
