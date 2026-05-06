@@ -110,6 +110,13 @@ st.markdown("""
 # ─────────────────────────────────────────────
 if "torneo_id" not in st.session_state:
     st.session_state.torneo_id = None
+    # Si la URL trae torneo_id (ej: link TV compartido), lo auto-seleccionamos
+    _qp_tid = st.query_params.get("torneo_id")
+    if _qp_tid:
+        try:
+            st.session_state.torneo_id = int(str(_qp_tid))
+        except (ValueError, TypeError):
+            pass
 # _torneo_cache guarda el dict del torneo activo para evitar hit a DB en cada rerún
 if "_torneo_cache" not in st.session_state:
     st.session_state._torneo_cache = None
@@ -1148,6 +1155,10 @@ elif pagina == "📺  Pantalla TV":
     st.caption("Modo TV para mostrar asignaciones por cancha" + (" (solo lectura)" if tv_readonly else ""))
     st.divider()
 
+    if not torneo:
+        st.warning("No hay torneo seleccionado. Abre la app normalmente y selecciona un torneo primero, o comparte el link TV con `torneo_id` en el sufijo.")
+        st.stop()
+
     tid = torneo["id"]
     jornadas = listar_jornadas(tid)
     if not jornadas:
@@ -1233,18 +1244,46 @@ elif pagina == "📺  Pantalla TV":
             {
                 "view": "tv",
                 "mode": "display",
+                "torneo_id": int(tid),
                 "jornada_id": int(jornada_sel["id"]),
                 "auto": 1 if auto_tv else 0,
                 "interval": int(intervalo),
                 "hide": 1 if tv_full else 0,
             }
         )
-        st.text_input("Link TV solo lectura (sufijo)", value=f"?{tv_query}", key="tv_share_suffix")
-        st.caption("Usa la URL base + este sufijo. Ejemplo: https://tu-app.streamlit.app" + f"?{tv_query}")
+        tv_full_url = f"?{tv_query}"
+
+        st.markdown("#### 🔗 Link TV")
+        _col_link, _col_copy = st.columns([5, 1])
+        _col_link.text_input("Link TV solo lectura", value=tv_full_url, key="tv_share_suffix", label_visibility="collapsed")
+        _col_copy.markdown(
+            f"""<button onclick="navigator.clipboard.writeText('{tv_full_url}').then(()=>{{this.innerText='✅'}})" """
+            f"""style="margin-top:4px;padding:6px 10px;border-radius:6px;border:1px solid #aaa;cursor:pointer;"""
+            f"""background:#f0f0f0;font-size:13px;">📋</button>""",
+            unsafe_allow_html=True,
+        )
+        st.caption("Copia este link completo y ábrelo en cualquier dispositivo — el torneo y jornada ya estarán seleccionados automáticamente.")
+
+        try:
+            import qrcode
+            import io as _io
+            _qr = qrcode.QRCode(box_size=4, border=2)
+            _qr.add_data(tv_full_url)
+            _qr.make(fit=True)
+            _qr_img = _qr.make_image(fill_color="black", back_color="white")
+            _qr_buf = _io.BytesIO()
+            _qr_img.save(_qr_buf, format="PNG")
+            _qr_buf.seek(0)
+            with st.expander("📱 Ver QR del link TV"):
+                st.image(_qr_buf, caption="Escanea para abrir en TV", width=180)
+        except Exception:
+            pass
+
         if st.button("Aplicar estos parámetros al URL actual", use_container_width=True):
             st.query_params.clear()
             st.query_params["view"] = "tv"
             st.query_params["mode"] = "display"
+            st.query_params["torneo_id"] = str(int(tid))
             st.query_params["jornada_id"] = str(int(jornada_sel["id"]))
             st.query_params["auto"] = "1" if auto_tv else "0"
             st.query_params["interval"] = str(int(intervalo))
