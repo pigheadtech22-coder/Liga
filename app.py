@@ -1390,21 +1390,28 @@ elif pagina == "📺  Pantalla TV":
     if tv_readonly:
         jornada_sel = opciones[labels_jornada[idx_default_j]]
 
-        # Header superior: logos principales + logo de marca de agua PDF.
-        _logo_left_rel = torneo.get("logo_left_path") or torneo.get("logo_path", "")
-        _logo_right_rel = torneo.get("logo_right_path", "")
-
-        _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
-        _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
-        _top_strip = _top_header_strip_bytes(
-            left_path=str(_top_left) if (_top_left and _top_left.exists()) else None,
-            right_path=str(_top_right) if (_top_right and _top_right.exists()) else None,
-            center_text=str(torneo.get("nombre", "")).strip(),
-            cell_w=350,
-            cell_h=66,
-            padding=6,
-        )
-        st.image(_top_strip, use_container_width=True)
+        # Header superior: logo personalizado TV o strip con logos + nombre.
+        _tv_header_rel = torneo.get("tv_header_logo_path", "")
+        if _tv_header_rel:
+            _tv_header_path = resolver_ruta(_tv_header_rel)
+            if _tv_header_path.exists():
+                st.image(str(_tv_header_path), use_container_width=True)
+            else:
+                _tv_header_rel = ""
+        if not _tv_header_rel:
+            _logo_left_rel = torneo.get("logo_left_path") or torneo.get("logo_path", "")
+            _logo_right_rel = torneo.get("logo_right_path", "")
+            _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
+            _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
+            _top_strip = _top_header_strip_bytes(
+                left_path=str(_top_left) if (_top_left and _top_left.exists()) else None,
+                right_path=str(_top_right) if (_top_right and _top_right.exists()) else None,
+                center_text=str(torneo.get("nombre", "")).strip(),
+                cell_w=350,
+                cell_h=66,
+                padding=6,
+            )
+            st.image(_top_strip, use_container_width=True)
 
         st.markdown(
             f"<p style='margin:0;padding:0;font-size:0.8rem;color:#888;'>"
@@ -1646,6 +1653,19 @@ elif pagina == "⚙️  Configuración":
         logo_left_file = st.file_uploader("Subir logo izquierdo", type=["png", "jpg", "jpeg"], key="cfg_logo_left")
         logo_right_file = st.file_uploader("Subir logo derecho (solo PDF)", type=["png", "jpg", "jpeg"], key="cfg_logo_right")
 
+        st.markdown("### Logo cabecera TV")
+        tv_header_logo_actual = torneo.get("tv_header_logo_path", "")
+        if tv_header_logo_actual:
+            r_tv = resolver_ruta(tv_header_logo_actual)
+            if r_tv.exists():
+                _mostrar_imagen(r_tv, width=300, caption="Cabecera TV actual")
+        tv_header_logo_file = st.file_uploader(
+            "Subir logo/banner para la cabecera de Pantalla TV",
+            type=["png", "jpg", "jpeg"],
+            key="cfg_tv_header_logo",
+            help="Se mostrará como imagen completa en la parte superior de la Pantalla TV.",
+        )
+
         st.markdown("### Patrocinadores en planilla PDF")
         sponsor_actuales = [torneo.get(f"sponsor_logo_{idx}_path", "") for idx in range(1, 9)]
         sponsor_files = []
@@ -1685,6 +1705,12 @@ elif pagina == "⚙️  Configuración":
                 logo_right_dest.write_bytes(logo_right_file.getvalue())
                 logo_right_path = ruta_relativa_a_base(logo_right_dest)
 
+            tv_header_logo_path = tv_header_logo_actual
+            if tv_header_logo_file:
+                tv_header_dest = assets_dir / tv_header_logo_file.name
+                tv_header_dest.write_bytes(tv_header_logo_file.getvalue())
+                tv_header_logo_path = ruta_relativa_a_base(tv_header_dest)
+
             sponsor_updates = {}
             for idx in range(1, 9):
                 sponsor_path = sponsor_actuales[idx - 1]
@@ -1698,6 +1724,7 @@ elif pagina == "⚙️  Configuración":
             actualizar_torneo(tid, nombre=nombre, temporada=temporada,
                               num_canchas=int(num_can), logo_path=logo_left_path,
                               logo_left_path=logo_left_path, logo_right_path=logo_right_path,
+                              tv_header_logo_path=tv_header_logo_path,
                               **sponsor_updates)
             crear_horarios(tid, [h for h in horarios_txt.splitlines() if h.strip()])
             st.success("✅ Configuración guardada.")

@@ -130,6 +130,8 @@ def init_db():
             col = f"sponsor_logo_{idx}_path"
             if col not in columnas_torneos:
                 conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
+        if "tv_header_logo_path" not in columnas_torneos:
+            conn.execute("ALTER TABLE torneos ADD COLUMN tv_header_logo_path TEXT DEFAULT ''")
         conn.execute(
             """UPDATE torneos
                SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
