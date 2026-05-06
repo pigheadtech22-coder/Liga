@@ -72,7 +72,7 @@ def _logo_tile_bytes(path_str: str, canvas_w: int = 380, canvas_h: int = 130, pa
 
 
 @st.cache_data(show_spinner=False)
-def _sponsor_strip_bytes(path_list: tuple[str, ...], cell_w: int = 320, cell_h: int = 210, padding: int = 2) -> bytes:
+def _sponsor_strip_bytes(path_list: tuple[str | None, ...], cell_w: int = 320, cell_h: int = 210, padding: int = 2) -> bytes:
     """Crea una tira única de logos (sin espacios entre celdas) sobre fondo blanco."""
     limite_original = _PILImage.MAX_IMAGE_PIXELS
     try:
@@ -81,6 +81,11 @@ def _sponsor_strip_bytes(path_list: tuple[str, ...], cell_w: int = 320, cell_h: 
         strip = _PILImage.new("RGBA", (total_w, cell_h), (255, 255, 255, 255))
 
         for idx, path_str in enumerate(path_list):
+            if not path_str:
+                continue
+            p = Path(path_str)
+            if not p.exists():
+                continue
             with _PILImage.open(path_str) as img:
                 if img.mode != "RGBA":
                     img = img.convert("RGBA")
@@ -497,7 +502,7 @@ elif pagina == "👥  Jugadores":
             for j in filtrados:
                 c_foto, c_nom, c_estado, c_edit, c_del = st.columns([1, 4, 2, 1, 1])
                 with c_foto:
-                    mostrar_foto(j["foto_sin_fondo"], j["foto_original"], size=44)
+                    mostrar_foto(j["foto_sin_fondo"], j["foto_original"], size=42)
                 c_nom.markdown(f"**{j['nombre']}**")
                 activo = bool(j["activo"])
                 nuevo_estado = c_estado.checkbox("Activo", value=activo, key=f"activo_{j['id']}")
@@ -1277,25 +1282,17 @@ elif pagina == "📺  Pantalla TV":
 
         _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
         _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
-        _top_wrap = st.columns([2, 1, 1, 1, 2])
-
-        with _top_wrap[1]:
-            if _top_left and _top_left.exists():
-                st.image(_logo_tile_bytes(str(_top_left), canvas_w=360, canvas_h=114, padding=8), width=136)
-            else:
-                st.markdown("&nbsp;", unsafe_allow_html=True)
-
-        with _top_wrap[2]:
-            if _wm_path.exists():
-                st.image(_logo_tile_bytes(str(_wm_path), canvas_w=360, canvas_h=114, padding=8), width=136)
-            else:
-                st.markdown("&nbsp;", unsafe_allow_html=True)
-
-        with _top_wrap[3]:
-            if _top_right and _top_right.exists():
-                st.image(_logo_tile_bytes(str(_top_right), canvas_w=360, canvas_h=114, padding=8), width=136)
-            else:
-                st.markdown("&nbsp;", unsafe_allow_html=True)
+        _top_strip = _sponsor_strip_bytes(
+            (
+                str(_top_left) if (_top_left and _top_left.exists()) else None,
+                str(_wm_path) if _wm_path.exists() else None,
+                str(_top_right) if (_top_right and _top_right.exists()) else None,
+            ),
+            cell_w=350,
+            cell_h=114,
+            padding=6,
+        )
+        st.image(_top_strip, use_container_width=True)
 
         st.markdown(
             f"<p style='margin:0;padding:0;font-size:0.8rem;color:#888;'>"
@@ -1460,7 +1457,7 @@ elif pagina == "📺  Pantalla TV":
                     for j in jugadores_orden:
                         cf, cn = st.columns([1, 4])
                         with cf:
-                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=44)
+                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=42)
                         with cn:
                             st.markdown(f"**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**")
 
