@@ -616,7 +616,7 @@ if pagina not in ("🏠  Inicio", "🏆  Mi Liga") and not torneo:
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: JUGADORES
 # ═══════════════════════════════════════════════════════════════
-elif pagina == "👥  Jugadores":
+if pagina == "👥  Jugadores":
     st.title("👥 Jugadores")
     st.divider()
 
