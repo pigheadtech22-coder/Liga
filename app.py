@@ -71,6 +71,23 @@ def _logo_tile_bytes(path_str: str, canvas_w: int = 380, canvas_h: int = 130, pa
     finally:
         _PILImage.MAX_IMAGE_PIXELS = limite_original
 
+
+@st.cache_data(show_spinner=False)
+def _logo_aspect(path_str: str) -> float:
+    """Devuelve una relación de aspecto acotada para distribuir ancho de forma proporcional."""
+    limite_original = _PILImage.MAX_IMAGE_PIXELS
+    try:
+        _PILImage.MAX_IMAGE_PIXELS = None
+        with _PILImage.open(path_str) as img:
+            w, h = img.size
+            if not w or not h:
+                return 1.0
+            return max(0.65, min(3.2, float(w) / float(h)))
+    except Exception:
+        return 1.0
+    finally:
+        _PILImage.MAX_IMAGE_PIXELS = limite_original
+
 from utils.database import (
     init_db,
     crear_torneo, listar_torneos, obtener_torneo, actualizar_torneo, eliminar_torneo,
@@ -1457,21 +1474,22 @@ elif pagina == "📺  Pantalla TV":
         if _sponsor_rutas:
             st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
             _total = len(_sponsor_rutas)
-            _tile_h = 92 if _total <= 3 else (80 if _total <= 5 else 66)
-            _tile_w = 320 if _total <= 3 else (300 if _total <= 5 else 280)
+            _tile_h = 102 if _total <= 3 else (88 if _total <= 5 else 74)
 
             # Franja única, logos pegados y llenando todo el ancho disponible.
             _items_html = []
             for _sruta in _sponsor_rutas:
+                _ratio = _logo_aspect(str(_sruta))
+                _canvas_w = max(220, int((_tile_h * 3) * _ratio))
                 _png = _logo_tile_bytes(
                     str(_sruta),
-                    canvas_w=_tile_w,
+                    canvas_w=_canvas_w,
                     canvas_h=_tile_h * 3,
-                    padding=4,
+                    padding=2,
                 )
                 _b64 = base64.b64encode(_png).decode("ascii")
                 _items_html.append(
-                    "<div style='flex:1 1 0;min-width:0;margin:0;padding:0;'>"
+                    f"<div style='flex:{_ratio:.3f} 1 0;min-width:0;margin:0;padding:0;'>"
                     f"<img src='data:image/png;base64,{_b64}' "
                     f"style='display:block;width:100%;height:{_tile_h}px;object-fit:contain;margin:0;padding:0;'/>"
                     "</div>"
