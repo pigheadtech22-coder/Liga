@@ -1289,7 +1289,7 @@ elif pagina == "📺  Pantalla TV":
                 str(_top_right) if (_top_right and _top_right.exists()) else None,
             ),
             cell_w=350,
-            cell_h=114,
+            cell_h=57,
             padding=6,
         )
         st.image(_top_strip, use_container_width=True)
