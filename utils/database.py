@@ -37,6 +37,9 @@ def init_db():
             temporada   TEXT    DEFAULT '',
             num_canchas INTEGER NOT NULL DEFAULT 5,
             logo_path   TEXT    DEFAULT '',
+            logo_left_path        TEXT DEFAULT '',
+            logo_right_path       TEXT DEFAULT '',
+            tv_header_logo_path   TEXT DEFAULT '',
             creado_en   TEXT    DEFAULT (datetime('now'))
         );
 
@@ -181,9 +184,14 @@ def obtener_torneo(torneo_id: int) -> dict | None:
 
 
 def actualizar_torneo(torneo_id: int, **kwargs):
-    campos = ", ".join(f"{k}=?" for k in kwargs)
-    valores = list(kwargs.values()) + [torneo_id]
     with get_conn() as conn:
+        # Filter kwargs to only include columns that actually exist in the table
+        columnas = {row["name"] for row in conn.execute("PRAGMA table_info(torneos)").fetchall()}
+        filtrado = {k: v for k, v in kwargs.items() if k in columnas}
+        if not filtrado:
+            return
+        campos = ", ".join(f"{k}=?" for k in filtrado)
+        valores = list(filtrado.values()) + [torneo_id]
         conn.execute(f"UPDATE torneos SET {campos} WHERE id=?", valores)
 
 
