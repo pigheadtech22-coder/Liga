@@ -1369,7 +1369,7 @@ elif pagina == "📺  Pantalla TV":
             }
             /* reducir tamaño de fuente en tarjetas */
             div[data-testid="stVerticalBlockBorderWrapper"] h3 {font-size:1.05rem !important; margin:0 !important;}
-            div[data-testid="stVerticalBlockBorderWrapper"] p {font-size:0.9rem !important; margin:0 !important;}
+            div[data-testid="stVerticalBlockBorderWrapper"] p {font-size:1rem !important; margin:0 !important;}
             </style>
             """,
             unsafe_allow_html=True,
@@ -1589,9 +1589,9 @@ elif pagina == "📺  Pantalla TV":
                     for j in jugadores_orden:
                         cf, cn = st.columns([1, 4])
                         with cf:
-                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=50)
+                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=60)
                         with cn:
-                            st.markdown(f"<span style='font-size:0.9rem'>**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**</span>", unsafe_allow_html=True)
+                            st.markdown(f"<span style='font-size:1rem'>**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**</span>", unsafe_allow_html=True)
                         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
                     if c.get("resultado"):
