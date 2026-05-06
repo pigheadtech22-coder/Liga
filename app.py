@@ -1212,7 +1212,7 @@ elif pagina == "📺  Pantalla TV":
             .stApp {overflow:hidden; height:100vh;}
             section[data-testid="stMain"] > div:first-child {height:100vh; overflow:hidden;}
             .block-container {
-                padding-top:0.4rem !important;
+                padding-top:0 !important;
                 padding-bottom:0 !important;
                 padding-left:0.6rem !important;
                 padding-right:0.6rem !important;
@@ -1222,6 +1222,8 @@ elif pagina == "📺  Pantalla TV":
                 display:flex;
                 flex-direction:column;
             }
+            .block-container > div:first-child {margin-top:0 !important; padding-top:0 !important;}
+            div[data-testid="stImage"] {margin-top:0 !important;}
             div[data-testid="stHorizontalBlock"] {
                 flex:1;
                 min-height:0;
