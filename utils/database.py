@@ -1,0 +1,438 @@
+"""
+database.py
+Capa de acceso a datos usando SQLite.
+Sin dependencias externas — migrar a PostgreSQL en el futuro cambiando solo este archivo.
+"""
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent.parent
+DB_PATH  = BASE_DIR / "data" / "liga.db"
+
+
+@contextmanager
+def get_conn():
+    DB_PATH.parent.mkdir(exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def init_db():
+    """Crea las tablas si no existen."""
+    with get_conn() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS torneos (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre      TEXT    NOT NULL,
+            temporada   TEXT    DEFAULT '',
+            num_canchas INTEGER NOT NULL DEFAULT 5,
+            logo_path   TEXT    DEFAULT '',
+            creado_en   TEXT    DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS horarios (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            torneo_id INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+            nombre    TEXT    NOT NULL,
+            orden     INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS jugadores (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            torneo_id      INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+            nombre         TEXT    NOT NULL,
+            foto_original  TEXT    DEFAULT '',
+            foto_sin_fondo TEXT    DEFAULT '',
+            activo         INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS jornadas (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            torneo_id  INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+            numero     INTEGER NOT NULL,
+            fecha      TEXT    DEFAULT '',
+            completada INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS canchas_jornada (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            jornada_id    INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+            numero_cancha INTEGER NOT NULL,
+            horario       TEXT    DEFAULT ''
+        );
+
+        CREATE TABLE IF NOT EXISTS asignaciones (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            cancha_jornada_id INTEGER NOT NULL REFERENCES canchas_jornada(id) ON DELETE CASCADE,
+            jugador_id        INTEGER NOT NULL REFERENCES jugadores(id),
+            posicion          INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS resultados (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            cancha_jornada_id INTEGER NOT NULL UNIQUE REFERENCES canchas_jornada(id) ON DELETE CASCADE,
+            set1_a INTEGER DEFAULT 0, set1_b INTEGER DEFAULT 0,
+            set2_a INTEGER DEFAULT 0, set2_b INTEGER DEFAULT 0,
+            set3_a INTEGER DEFAULT 0, set3_b INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS ausencias_jornada (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            jornada_id  INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+            jugador_id  INTEGER NOT NULL REFERENCES jugadores(id),
+            penalizacion INTEGER NOT NULL DEFAULT -10,
+            UNIQUE (jornada_id, jugador_id)
+        );
+        """)
+
+        columnas_torneos = {
+            row["name"] for row in conn.execute("PRAGMA table_info(torneos)").fetchall()
+        }
+        if "logo_left_path" not in columnas_torneos:
+            conn.execute("ALTER TABLE torneos ADD COLUMN logo_left_path TEXT DEFAULT ''")
+        if "logo_right_path" not in columnas_torneos:
+            conn.execute("ALTER TABLE torneos ADD COLUMN logo_right_path TEXT DEFAULT ''")
+        for idx in range(1, 9):
+            col = f"sponsor_logo_{idx}_path"
+            if col not in columnas_torneos:
+                conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
+        conn.execute(
+            """UPDATE torneos
+               SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
+               WHERE COALESCE(logo_left_path, '') = '' AND COALESCE(logo_path, '') != ''"""
+        )
+
+
+# ─────────────────────────── TORNEOS ────────────────────────────
+
+def crear_torneo(
+    nombre: str,
+    temporada: str,
+    num_canchas: int,
+    logo_path: str = "",
+    logo_left_path: str = "",
+    logo_right_path: str = "",
+) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO torneos
+               (nombre, temporada, num_canchas, logo_path, logo_left_path, logo_right_path)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                nombre,
+                temporada,
+                num_canchas,
+                logo_path,
+                logo_left_path or logo_path,
+                logo_right_path,
+            ),
+        )
+        return cur.lastrowid
+
+
+def listar_torneos() -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM torneos ORDER BY creado_en DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def obtener_torneo(torneo_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM torneos WHERE id=?", (torneo_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def actualizar_torneo(torneo_id: int, **kwargs):
+    campos = ", ".join(f"{k}=?" for k in kwargs)
+    valores = list(kwargs.values()) + [torneo_id]
+    with get_conn() as conn:
+        conn.execute(f"UPDATE torneos SET {campos} WHERE id=?", valores)
+
+
+def eliminar_torneo(torneo_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM torneos WHERE id=?", (torneo_id,))
+
+
+# ─────────────────────────── HORARIOS ───────────────────────────
+
+def crear_horarios(torneo_id: int, horarios: list[str]):
+    """Reemplaza los horarios del torneo con la nueva lista."""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM horarios WHERE torneo_id=?", (torneo_id,))
+        for i, h in enumerate(horarios):
+            h = h.strip()
+            if h:
+                conn.execute(
+                    "INSERT INTO horarios (torneo_id, nombre, orden) VALUES (?,?,?)",
+                    (torneo_id, h, i),
+                )
+
+
+def listar_horarios(torneo_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM horarios WHERE torneo_id=? ORDER BY orden", (torneo_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ─────────────────────────── JUGADORES ──────────────────────────
+
+def crear_jugador(torneo_id: int, nombre: str) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?)",
+            (torneo_id, nombre.strip()),
+        )
+        return cur.lastrowid
+
+
+def listar_jugadores(torneo_id: int, solo_activos: bool = False) -> list[dict]:
+    sql = "SELECT * FROM jugadores WHERE torneo_id=?"
+    if solo_activos:
+        sql += " AND activo=1"
+    sql += " ORDER BY nombre"
+    with get_conn() as conn:
+        rows = conn.execute(sql, (torneo_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def obtener_jugador(jugador_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM jugadores WHERE id=?", (jugador_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def actualizar_jugador(jugador_id: int, **kwargs):
+    campos = ", ".join(f"{k}=?" for k in kwargs)
+    valores = list(kwargs.values()) + [jugador_id]
+    with get_conn() as conn:
+        conn.execute(f"UPDATE jugadores SET {campos} WHERE id=?", valores)
+
+
+def eliminar_jugador(jugador_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM jugadores WHERE id=?", (jugador_id,))
+
+
+# ─────────────────────────── JORNADAS ───────────────────────────
+
+def crear_jornada(torneo_id: int, numero: int, fecha: str = "") -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?)",
+            (torneo_id, numero, fecha),
+        )
+        return cur.lastrowid
+
+
+def listar_jornadas(torneo_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jornadas WHERE torneo_id=? ORDER BY numero", (torneo_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def marcar_jornada_completada(jornada_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE jornadas SET completada=1 WHERE id=?", (jornada_id,))
+
+
+def eliminar_jornada(jornada_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM jornadas WHERE id=?", (jornada_id,))
+
+
+# ──────────────────────── CANCHAS / ASIGNACIONES ────────────────
+
+def crear_cancha_jornada(jornada_id: int, numero_cancha: int, horario: str = "") -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?)",
+            (jornada_id, numero_cancha, horario),
+        )
+        return cur.lastrowid
+
+
+def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO asignaciones (cancha_jornada_id, jugador_id, posicion) VALUES (?,?,?)",
+            (cancha_jornada_id, jugador_id, posicion),
+        )
+
+
+def obtener_canchas_jornada(jornada_id: int) -> list[dict]:
+    """Devuelve canchas con sus jugadores ya incluidos."""
+    with get_conn() as conn:
+        canchas = conn.execute(
+            "SELECT * FROM canchas_jornada WHERE jornada_id=? ORDER BY numero_cancha",
+            (jornada_id,),
+        ).fetchall()
+
+        resultado = []
+        for c in canchas:
+            cid = c["id"]
+            asigs = conn.execute(
+                """SELECT a.posicion, j.id as jugador_id, j.nombre,
+                          j.foto_original, j.foto_sin_fondo
+                   FROM asignaciones a
+                   JOIN jugadores j ON j.id = a.jugador_id
+                   WHERE a.cancha_jornada_id = ?
+                   ORDER BY a.posicion""",
+                (cid,),
+            ).fetchall()
+            res = conn.execute(
+                "SELECT * FROM resultados WHERE cancha_jornada_id=?", (cid,)
+            ).fetchone()
+            resultado.append(
+                {
+                    "id": cid,
+                    "numero_cancha": c["numero_cancha"],
+                    "horario": c["horario"],
+                    "jugadores": [dict(a) for a in asigs],
+                    "resultado": dict(res) if res else None,
+                }
+            )
+        return resultado
+
+
+# ──────────────────────── RESULTADOS ────────────────────────────
+
+def guardar_resultado(
+    cancha_jornada_id: int,
+    s1a: int, s1b: int,
+    s2a: int, s2b: int,
+    s3a: int, s3b: int,
+):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO resultados
+               (cancha_jornada_id, set1_a, set1_b, set2_a, set2_b, set3_a, set3_b)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(cancha_jornada_id) DO UPDATE SET
+                 set1_a=excluded.set1_a, set1_b=excluded.set1_b,
+                 set2_a=excluded.set2_a, set2_b=excluded.set2_b,
+                 set3_a=excluded.set3_a, set3_b=excluded.set3_b""",
+            (cancha_jornada_id, s1a, s1b, s2a, s2b, s3a, s3b),
+        )
+
+
+def guardar_ausencias_jornada(jornada_id: int, penalizaciones: dict[int, int]):
+    """Reemplaza ausencias registradas para una jornada.
+    penalizaciones: {jugador_id: puntos_penalizacion}
+    """
+    with get_conn() as conn:
+        conn.execute("DELETE FROM ausencias_jornada WHERE jornada_id=?", (jornada_id,))
+        for jugador_id, penalizacion in penalizaciones.items():
+            conn.execute(
+                """INSERT INTO ausencias_jornada (jornada_id, jugador_id, penalizacion)
+                   VALUES (?,?,?)""",
+                (jornada_id, jugador_id, penalizacion),
+            )
+
+
+def obtener_ausencias_jornada(jornada_id: int) -> dict[int, int]:
+    """Devuelve {jugador_id: penalizacion} para una jornada."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT jugador_id, penalizacion FROM ausencias_jornada WHERE jornada_id=?",
+            (jornada_id,),
+        ).fetchall()
+        return {int(r["jugador_id"]): int(r["penalizacion"]) for r in rows}
+
+
+# ──────────────────────── RANKING ───────────────────────────────
+
+def calcular_ranking(torneo_id: int) -> list[dict]:
+    """
+    Devuelve ranking general calculado desde la DB.
+    Cada entrada: id, nombre, total_pts, pts_por_jornada, jornadas_jugadas, posicion.
+    """
+    from utils.liga_engine import calcular_puntos_jugador
+
+    with get_conn() as conn:
+        jugadores = conn.execute(
+            "SELECT * FROM jugadores WHERE torneo_id=? ORDER BY nombre", (torneo_id,)
+        ).fetchall()
+
+        jornadas = conn.execute(
+            "SELECT * FROM jornadas WHERE torneo_id=? AND completada=1 ORDER BY numero",
+            (torneo_id,),
+        ).fetchall()
+
+        ranking = []
+        for j in jugadores:
+            jid = j["id"]
+            pts_por_jornada: dict[int, int] = {}   # solo puntos de juego
+            pen_por_jornada: dict[int, int] = {}   # solo penalizaciones
+            total_juego = 0
+            total_pen   = 0
+
+            for jornada in jornadas:
+                penalizacion = conn.execute(
+                    """SELECT penalizacion FROM ausencias_jornada
+                       WHERE jornada_id=? AND jugador_id=?""",
+                    (jornada["id"], jid),
+                ).fetchone()
+
+                if penalizacion:
+                    pen = int(penalizacion["penalizacion"])
+                    pen_por_jornada[jornada["numero"]] = pen
+                    total_pen += pen
+
+                # Buscar si este jugador tiene asignación en esta jornada
+                row = conn.execute(
+                    """SELECT a.posicion, r.set1_a, r.set1_b, r.set2_a, r.set2_b,
+                              r.set3_a, r.set3_b
+                       FROM asignaciones a
+                       JOIN canchas_jornada cj ON cj.id = a.cancha_jornada_id
+                       JOIN resultados r ON r.cancha_jornada_id = cj.id
+                       WHERE cj.jornada_id=? AND a.jugador_id=?""",
+                    (jornada["id"], jid),
+                ).fetchone()
+
+                if row:
+                    pts = calcular_puntos_jugador(
+                        posicion=row["posicion"],
+                        s1a=row["set1_a"], s1b=row["set1_b"],
+                        s2a=row["set2_a"], s2b=row["set2_b"],
+                        s3a=row["set3_a"], s3b=row["set3_b"],
+                    )
+                    pts_por_jornada[jornada["numero"]] = pts
+                    total_juego += pts
+
+            ranking.append(
+                {
+                    "id": jid,
+                    "nombre": j["nombre"],
+                    "foto_original": j["foto_original"],
+                    "foto_sin_fondo": j["foto_sin_fondo"],
+                    "pts_por_jornada": pts_por_jornada,
+                    "pen_por_jornada": pen_por_jornada,
+                    "total_juego": total_juego,
+                    "total_pen": total_pen,
+                    "total_pts": total_juego + total_pen,
+                    "jornadas_jugadas": len(pts_por_jornada),
+                }
+            )
+
+    ranking.sort(key=lambda r: (-r["total_pts"], r["nombre"]))
+    for i, r in enumerate(ranking, 1):
+        r["posicion"] = i
+
+    return ranking

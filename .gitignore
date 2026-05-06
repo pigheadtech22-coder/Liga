@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local database and generated files
+data/liga.db
+*.pdf
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Runtime caches
+assets/.cache/
