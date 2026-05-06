@@ -1142,8 +1142,10 @@ elif pagina == "📄  Exportar PDF":
 # PÁGINA: PANTALLA TV
 # ═══════════════════════════════════════════════════════════════
 elif pagina == "📺  Pantalla TV":
+    tv_mode = str(st.query_params.get("mode", "operator")).strip().lower()
+    tv_readonly = tv_mode in ("display", "readonly", "tv")
     st.title("📺 Visualización de Canchas")
-    st.caption("Modo TV para mostrar asignaciones por cancha")
+    st.caption("Modo TV para mostrar asignaciones por cancha" + (" (solo lectura)" if tv_readonly else ""))
     st.divider()
 
     tid = torneo["id"]
@@ -1165,9 +1167,13 @@ elif pagina == "📺  Pantalla TV":
             if int(opciones[lbl]["id"]) == qp_jornada_id:
                 idx_default_j = pos
                 break
-    jornada_sel = opciones[
-        st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
-    ]
+    if tv_readonly:
+        jornada_sel = opciones[labels_jornada[idx_default_j]]
+        st.caption(f"Jornada {jornada_sel['numero']} — {jornada_sel['fecha']}")
+    else:
+        jornada_sel = opciones[
+            st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
+        ]
     canchas = obtener_canchas_jornada(jornada_sel["id"])
     if not canchas:
         st.info("La jornada no tiene canchas cargadas.")
@@ -1196,41 +1202,54 @@ elif pagina == "📺  Pantalla TV":
         st.session_state["tv_auto"] = qp_auto
         st.session_state["tv_interval"] = qp_interval
         st.session_state["tv_hide_sidebar"] = qp_hide
+    if tv_readonly:
+        auto_tv = qp_auto
+        intervalo = qp_interval
+        if auto_tv is False and "auto" not in st.query_params:
+            auto_tv = True
+        tv_full = qp_hide
+        if tv_full is False and "hide" not in st.query_params:
+            tv_full = True
+        st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
+    else:
+        cnav1, cnav2, cnav3, cnav4 = st.columns([1, 1, 2, 2])
+        if cnav1.button("◀ Anterior", use_container_width=True, disabled=(total_paginas == 1)):
+            st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] - 1) % total_paginas
+            st.session_state["tv_last_switch_ts"] = time.time()
+            st.rerun()
+        if cnav2.button("Siguiente ▶", use_container_width=True, disabled=(total_paginas == 1)):
+            st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
+            st.session_state["tv_last_switch_ts"] = time.time()
+            st.rerun()
 
-    cnav1, cnav2, cnav3, cnav4 = st.columns([1, 1, 2, 2])
-    if cnav1.button("◀ Anterior", use_container_width=True, disabled=(total_paginas == 1)):
-        st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] - 1) % total_paginas
-        st.session_state["tv_last_switch_ts"] = time.time()
-        st.rerun()
-    if cnav2.button("Siguiente ▶", use_container_width=True, disabled=(total_paginas == 1)):
-        st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
-        st.session_state["tv_last_switch_ts"] = time.time()
-        st.rerun()
+        auto_tv = cnav3.toggle("Auto carrusel", value=st.session_state.get("tv_auto", False), key="tv_auto")
+        idx_intervalo = [5, 8, 10, 12, 15, 20].index(st.session_state.get("tv_interval", 10))
+        intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=idx_intervalo, key="tv_interval")
+        st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
 
-    auto_tv = cnav3.toggle("Auto carrusel", value=st.session_state.get("tv_auto", False), key="tv_auto")
-    idx_intervalo = [5, 8, 10, 12, 15, 20].index(st.session_state.get("tv_interval", 10))
-    intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=idx_intervalo, key="tv_interval")
-    st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
+        tv_full = st.toggle("Modo TV (ocultar sidebar)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
 
-    tv_query = urlencode(
-        {
-            "view": "tv",
-            "jornada_id": int(jornada_sel["id"]),
-            "auto": 1 if auto_tv else 0,
-            "interval": int(intervalo),
-            "hide": 1 if st.session_state.get("tv_hide_sidebar", False) else 0,
-        }
-    )
-    st.text_input("Link TV (sufijo)", value=f"?{tv_query}", key="tv_share_suffix")
-    st.caption("Usa la URL base de la app + este sufijo. Ejemplo: https://tu-app.streamlit.app" + f"?{tv_query}")
-    if st.button("Aplicar estos parámetros al URL actual", use_container_width=True):
-        st.query_params.clear()
-        st.query_params["view"] = "tv"
-        st.query_params["jornada_id"] = str(int(jornada_sel["id"]))
-        st.query_params["auto"] = "1" if auto_tv else "0"
-        st.query_params["interval"] = str(int(intervalo))
-        st.query_params["hide"] = "1" if st.session_state.get("tv_hide_sidebar", False) else "0"
-        st.rerun()
+        tv_query = urlencode(
+            {
+                "view": "tv",
+                "mode": "display",
+                "jornada_id": int(jornada_sel["id"]),
+                "auto": 1 if auto_tv else 0,
+                "interval": int(intervalo),
+                "hide": 1 if tv_full else 0,
+            }
+        )
+        st.text_input("Link TV solo lectura (sufijo)", value=f"?{tv_query}", key="tv_share_suffix")
+        st.caption("Usa la URL base + este sufijo. Ejemplo: https://tu-app.streamlit.app" + f"?{tv_query}")
+        if st.button("Aplicar estos parámetros al URL actual", use_container_width=True):
+            st.query_params.clear()
+            st.query_params["view"] = "tv"
+            st.query_params["mode"] = "display"
+            st.query_params["jornada_id"] = str(int(jornada_sel["id"]))
+            st.query_params["auto"] = "1" if auto_tv else "0"
+            st.query_params["interval"] = str(int(intervalo))
+            st.query_params["hide"] = "1" if tv_full else "0"
+            st.rerun()
 
     if auto_tv and total_paginas > 1:
         now = time.time()
@@ -1243,7 +1262,6 @@ elif pagina == "📺  Pantalla TV":
             st.rerun()
         st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
 
-    tv_full = st.toggle("Modo TV (ocultar sidebar)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
     if tv_full:
         st.markdown(
             """
