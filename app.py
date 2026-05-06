@@ -1251,18 +1251,28 @@ elif pagina == "📺  Pantalla TV":
                 "hide": 1 if tv_full else 0,
             }
         )
-        tv_full_url = f"?{tv_query}"
+
+        # Construir URL completa usando la URL real del contexto de la sesión
+        try:
+            _current_url = str(st.context.url)
+            _base_url = _current_url.split("?")[0].rstrip("/")
+        except Exception:
+            _host = st.context.headers.get("host", "localhost:8501")
+            _proto = "https" if (not _host.startswith("localhost") and not _host.startswith("127.")) else "http"
+            _base_url = f"{_proto}://{_host}"
+
+        tv_full_url = f"{_base_url}?{tv_query}"
 
         st.markdown("#### 🔗 Link TV")
         _col_link, _col_copy = st.columns([5, 1])
-        _col_link.text_input("Link TV solo lectura", value=tv_full_url, key="tv_share_suffix", label_visibility="collapsed")
+        _col_link.code(tv_full_url, language=None)
         _col_copy.markdown(
-            f"""<button onclick="navigator.clipboard.writeText('{tv_full_url}').then(()=>{{this.innerText='✅'}})" """
+            f"""<button onclick="navigator.clipboard.writeText('{tv_full_url}').then(()=>{{this.innerText='✅'}},()=>{{}})" """
             f"""style="margin-top:4px;padding:6px 10px;border-radius:6px;border:1px solid #aaa;cursor:pointer;"""
             f"""background:#f0f0f0;font-size:13px;">📋</button>""",
             unsafe_allow_html=True,
         )
-        st.caption("Copia este link completo y ábrelo en cualquier dispositivo — el torneo y jornada ya estarán seleccionados automáticamente.")
+        st.caption("Abre este link en cualquier dispositivo — el torneo y jornada se seleccionan automáticamente.")
 
         try:
             import qrcode
