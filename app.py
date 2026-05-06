@@ -6,6 +6,7 @@ Ejecutar: streamlit run app.py
 import tempfile
 import os
 import io
+import time
 from datetime import date
 from pathlib import Path
 
@@ -48,6 +49,7 @@ from utils.database import (
     crear_horarios, listar_horarios,
     crear_jugador, listar_jugadores, actualizar_jugador, eliminar_jugador,
     listar_jornadas, marcar_jornada_completada, eliminar_jornada,
+    actualizar_horario_cancha,
     obtener_canchas_jornada,
     guardar_resultado, guardar_ausencias_jornada, obtener_ausencias_jornada,
     calcular_ranking,
@@ -209,6 +211,7 @@ with st.sidebar:
         "🏓  Resultados",
         "📊  Ranking",
         "📄  Exportar PDF",
+        "📺  Pantalla TV",
         "⚙️  Configuración",
     ]
     pagina = st.radio("Navegación", PAGINAS, label_visibility="collapsed")
@@ -701,6 +704,20 @@ elif pagina == "📅  Jornadas":
                 ):
                     canchas = obtener_canchas_jornada(jornada["id"])
                     for c in canchas:
+                        ctop1, ctop2 = st.columns([2, 1])
+                        ctop1.markdown(f"**Cancha {c['numero_cancha']}**")
+                        nuevo_horario = ctop2.text_input(
+                            "Horario",
+                            value=c["horario"] or "",
+                            key=f"edit_horario_{c['id']}",
+                            label_visibility="collapsed",
+                            placeholder="Horario",
+                        )
+                        if nuevo_horario != (c["horario"] or ""):
+                            actualizar_horario_cancha(c["id"], nuevo_horario.strip())
+                            st.success(f"Horario actualizado en Cancha {c['numero_cancha']}")
+                            st.rerun()
+
                         nombres_c = [j["nombre"] for j in sorted(c["jugadores"], key=lambda x: x["posicion"])]
                         if c["resultado"]:
                             r = c["resultado"]
@@ -1115,6 +1132,134 @@ elif pagina == "📄  Exportar PDF":
                     f"{torneo['nombre'].replace(' ','_')}_Ranking_J{ref}.pdf",
                     "application/pdf",
                     use_container_width=True,
+                )
+
+
+# ═══════════════════════════════════════════════════════════════
+# PÁGINA: PANTALLA TV
+# ═══════════════════════════════════════════════════════════════
+elif pagina == "📺  Pantalla TV":
+    st.title("📺 Visualización de Canchas")
+    st.caption("Modo TV para mostrar asignaciones por cancha")
+    st.divider()
+
+    tid = torneo["id"]
+    jornadas = listar_jornadas(tid)
+    if not jornadas:
+        st.info("No hay jornadas generadas todavía.")
+        st.stop()
+
+    opciones = {f"Jornada {j['numero']} — {j['fecha']}": j for j in reversed(jornadas)}
+    jornada_sel = opciones[st.selectbox("Jornada a mostrar", list(opciones.keys()), key="tv_jornada")]
+    canchas = obtener_canchas_jornada(jornada_sel["id"])
+    if not canchas:
+        st.info("La jornada no tiene canchas cargadas.")
+        st.stop()
+
+    if st.session_state.get("tv_last_jornada_id") != jornada_sel["id"]:
+        st.session_state["tv_last_jornada_id"] = jornada_sel["id"]
+        st.session_state["tv_page_idx"] = 0
+        st.session_state["tv_last_switch_ts"] = time.time()
+
+    st.markdown(
+        """
+        <style>
+        .tv-card {
+            background: linear-gradient(165deg, #1e50a0 0%, #2d6cc7 100%);
+            border-radius: 14px;
+            padding: 12px;
+            color: white;
+            min-height: 205px;
+            margin-bottom: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.14);
+        }
+        .tv-title { font-size: 1.05rem; font-weight: 700; }
+        .tv-horario { font-size: 0.82rem; opacity: 0.92; margin-bottom: 8px; }
+        .tv-player { font-size: 0.90rem; line-height: 1.35; }
+        .tv-result { font-size: 0.78rem; opacity: 0.95; margin-top: 8px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    canchas_por_pagina = 10
+    paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
+    total_paginas = max(1, len(paginas))
+    st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
+
+    cnav1, cnav2, cnav3, cnav4 = st.columns([1, 1, 2, 2])
+    if cnav1.button("◀ Anterior", use_container_width=True, disabled=(total_paginas == 1)):
+        st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] - 1) % total_paginas
+        st.session_state["tv_last_switch_ts"] = time.time()
+        st.rerun()
+    if cnav2.button("Siguiente ▶", use_container_width=True, disabled=(total_paginas == 1)):
+        st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
+        st.session_state["tv_last_switch_ts"] = time.time()
+        st.rerun()
+
+    auto_tv = cnav3.toggle("Auto carrusel", value=st.session_state.get("tv_auto", False), key="tv_auto")
+    intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=2, key="tv_interval")
+    st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
+
+    if auto_tv and total_paginas > 1:
+        now = time.time()
+        last_ts = st.session_state.get("tv_last_switch_ts")
+        if not last_ts:
+            st.session_state["tv_last_switch_ts"] = now
+        elif now - last_ts >= float(intervalo):
+            st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
+            st.session_state["tv_last_switch_ts"] = now
+            st.rerun()
+        st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
+
+    tv_full = st.toggle("Modo TV (ocultar sidebar)", value=False, key="tv_hide_sidebar")
+    if tv_full:
+        st.markdown(
+            """
+            <style>
+            section[data-testid="stSidebar"] {display: none !important;}
+            button[kind="header"] {display:none !important;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    pagina_canchas = paginas[st.session_state["tv_page_idx"]] if paginas else []
+    for fila in range(2):
+        cols = st.columns(5)
+        for col in range(5):
+            idx = fila * 5 + col
+            with cols[col]:
+                if idx >= len(pagina_canchas):
+                    st.write("")
+                    continue
+                c = pagina_canchas[idx]
+                jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
+                jugadores_html = "".join(
+                    f"<div class='tv-player'>P{j.get('posicion', '-')}: {j.get('nombre', '-')}</div>"
+                    for j in jugadores_orden
+                )
+                resultado_html = ""
+                if c.get("resultado"):
+                    r = c["resultado"]
+                    resultado_html = (
+                        "<div class='tv-result'>"
+                        f"S1 {r['set1_a']}-{r['set1_b']} | "
+                        f"S2 {r['set2_a']}-{r['set2_b']} | "
+                        f"S3 {r['set3_a']}-{r['set3_b']}"
+                        "</div>"
+                    )
+
+                st.markdown(
+                    f"""
+                    <div class='tv-card'>
+                        <div class='tv-title'>Cancha {c['numero_cancha']}</div>
+                        <div class='tv-horario'>⏰ {c.get('horario') or '-'}</div>
+                        {jugadores_html}
+                        {resultado_html}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
 
 
