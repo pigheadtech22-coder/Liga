@@ -1151,13 +1151,63 @@ elif pagina == "📄  Exportar PDF":
 elif pagina == "📺  Pantalla TV":
     tv_mode = str(st.query_params.get("mode", "operator")).strip().lower()
     tv_readonly = tv_mode in ("display", "readonly", "tv")
-    st.title("📺 Visualización de Canchas")
-    st.caption("Modo TV para mostrar asignaciones por cancha" + (" (solo lectura)" if tv_readonly else ""))
-    st.divider()
 
     if not torneo:
         st.warning("No hay torneo seleccionado. Abre la app normalmente y selecciona un torneo primero, o comparte el link TV con `torneo_id` en el sufijo.")
         st.stop()
+
+    # ── Modo display: inyectar CSS full-viewport antes de cualquier widget ──
+    if tv_readonly:
+        st.markdown(
+            """
+            <style>
+            section[data-testid="stSidebar"] {display:none !important;}
+            header[data-testid="stHeader"] {display:none !important;}
+            #MainMenu {display:none !important;}
+            footer {display:none !important;}
+            .stApp {overflow:hidden; height:100vh;}
+            section[data-testid="stMain"] > div:first-child {height:100vh; overflow:hidden;}
+            .block-container {
+                padding-top:0.4rem !important;
+                padding-bottom:0 !important;
+                padding-left:0.6rem !important;
+                padding-right:0.6rem !important;
+                max-width:100% !important;
+                height:100vh;
+                overflow:hidden;
+                display:flex;
+                flex-direction:column;
+            }
+            div[data-testid="stHorizontalBlock"] {
+                flex:1;
+                min-height:0;
+                align-items:stretch;
+                gap:0.3rem;
+            }
+            div[data-testid="stColumn"] > div:first-child {
+                height:100%;
+                overflow:hidden;
+            }
+            div[data-testid="stVerticalBlockBorderWrapper"] {
+                height:100% !important;
+                overflow:hidden;
+            }
+            div[data-testid="stVerticalBlock"] {
+                height:100%;
+                overflow:hidden;
+            }
+            /* reducir tamaño de fuente en tarjetas */
+            div[data-testid="stVerticalBlockBorderWrapper"] h3 {font-size:1rem !important; margin:0 !important;}
+            div[data-testid="stVerticalBlockBorderWrapper"] p {font-size:0.78rem !important; margin:0 !important;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if not tv_readonly:
+        st.title("📺 Visualización de Canchas")
+        st.caption("Modo TV para mostrar asignaciones por cancha")
+        st.divider()
 
     tid = torneo["id"]
     jornadas = listar_jornadas(tid)
@@ -1180,7 +1230,12 @@ elif pagina == "📺  Pantalla TV":
                 break
     if tv_readonly:
         jornada_sel = opciones[labels_jornada[idx_default_j]]
-        st.caption(f"Jornada {jornada_sel['numero']} — {jornada_sel['fecha']}")
+        st.markdown(
+            f"<p style='margin:0;padding:0;font-size:0.8rem;color:#888;'>"
+            f"📅 Jornada {jornada_sel['numero']} — {jornada_sel['fecha']} &nbsp;|&nbsp; "
+            f"Página <span id='tv_pg_num'></span></p>",
+            unsafe_allow_html=True,
+        )
     else:
         jornada_sel = opciones[
             st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
@@ -1216,12 +1271,9 @@ elif pagina == "📺  Pantalla TV":
     if tv_readonly:
         auto_tv = qp_auto
         intervalo = qp_interval
-        if auto_tv is False and "auto" not in st.query_params:
+        if "auto" not in st.query_params:
             auto_tv = True
-        tv_full = qp_hide
-        if tv_full is False and "hide" not in st.query_params:
-            tv_full = True
-        st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
+        tv_full = True  # siempre ocultar sidebar en modo display
     else:
         cnav1, cnav2, cnav3, cnav4 = st.columns([1, 1, 2, 2])
         if cnav1.button("◀ Anterior", use_container_width=True, disabled=(total_paginas == 1)):
@@ -1238,8 +1290,9 @@ elif pagina == "📺  Pantalla TV":
         intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=idx_intervalo, key="tv_interval")
         st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
 
-        tv_full = st.toggle("Modo TV (ocultar sidebar)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
+        tv_full = st.toggle("Ocultar sidebar (vista operador)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
 
+        # El link generado siempre oculta sidebar (hide=1) — es para TV
         tv_query = urlencode(
             {
                 "view": "tv",
@@ -1248,7 +1301,7 @@ elif pagina == "📺  Pantalla TV":
                 "jornada_id": int(jornada_sel["id"]),
                 "auto": 1 if auto_tv else 0,
                 "interval": int(intervalo),
-                "hide": 1 if tv_full else 0,
+                "hide": 1,
             }
         )
 
@@ -1311,12 +1364,12 @@ elif pagina == "📺  Pantalla TV":
             st.rerun()
         st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
 
-    if tv_full:
+    if tv_full and not tv_readonly:
+        # El toggle del operador para ocultar su propio sidebar
         st.markdown(
             """
             <style>
             section[data-testid="stSidebar"] {display: none !important;}
-            button[kind="header"] {display:none !important;}
             </style>
             """,
             unsafe_allow_html=True,
