@@ -18,7 +18,7 @@ from PIL import ImageDraw as _PILDraw
 from PIL import ImageFont as _PILFont
 
 @st.cache_data(show_spinner=False)
-def _img_preview_bytes(path_str: str, max_px: int = 1400) -> bytes:
+def _img_preview_bytes(path_str: str, mtime_ns: int = 0, max_px: int = 1400) -> bytes:
     """Genera una versión reducida para imágenes gigantes solo cuando hace falta."""
     limite_original = _PILImage.MAX_IMAGE_PIXELS
     try:
@@ -37,14 +37,22 @@ def _img_preview_bytes(path_str: str, max_px: int = 1400) -> bytes:
         _PILImage.MAX_IMAGE_PIXELS = limite_original
 
 
+@st.cache_data(show_spinner=False)
+def _img_raw_bytes(path_str: str, mtime_ns: int = 0) -> bytes:
+    # mtime_ns se incluye para invalidar caché cuando el archivo se reemplaza
+    return Path(path_str).read_bytes()
+
+
 def _mostrar_imagen(path: Path, **kwargs):
     """Muestra imagen rápida; si PIL detecta bomba de descompresión, usa preview seguro."""
     try:
-        st.image(str(path), **kwargs)
+        mtime_ns = path.stat().st_mtime_ns
+        st.image(_img_raw_bytes(str(path), mtime_ns), **kwargs)
     except Exception as exc:
         if "DecompressionBombError" not in str(exc):
             raise
-        st.image(_img_preview_bytes(str(path)), **kwargs)
+        mtime_ns = path.stat().st_mtime_ns
+        st.image(_img_preview_bytes(str(path), mtime_ns), **kwargs)
 
 
 @st.cache_data(show_spinner=False)
@@ -1600,6 +1608,9 @@ elif pagina == "📺  Pantalla TV":
             st.session_state["tv_last_switch_ts"] = now
             st.rerun()
         st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
+    elif tv_readonly:
+        # Sin carrusel, refresca cada 3s para reflejar cambios (fotos, nombres, resultados) automáticamente.
+        st.markdown("<meta http-equiv='refresh' content='3'>", unsafe_allow_html=True)
 
     if tv_full and not tv_readonly:
         # El toggle del operador para ocultar su propio sidebar
