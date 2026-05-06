@@ -276,6 +276,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def _parse_tv_short_token(token: str) -> tuple[int | None, int | None]:
+    raw = str(token or "").strip()
+    if not raw:
+        return None, None
+    parts = raw.split("-", 1)
+    if len(parts) != 2:
+        return None, None
+    try:
+        tid = int(parts[0])
+        jid = int(parts[1])
+        if tid <= 0 or jid <= 0:
+            return None, None
+        return tid, jid
+    except (TypeError, ValueError):
+        return None, None
+
 # ─────────────────────────────────────────────
 # Estado de sesión
 # ─────────────────────────────────────────────
@@ -283,11 +300,14 @@ if "torneo_id" not in st.session_state:
     st.session_state.torneo_id = None
     # Si la URL trae torneo_id (ej: link TV compartido), lo auto-seleccionamos
     _qp_tid = st.query_params.get("torneo_id")
+    _tv_short_tid, _tv_short_jid = _parse_tv_short_token(st.query_params.get("tv"))
     if _qp_tid:
         try:
             st.session_state.torneo_id = int(str(_qp_tid))
         except (ValueError, TypeError):
             pass
+    elif _tv_short_tid:
+        st.session_state.torneo_id = _tv_short_tid
 # _torneo_cache guarda el dict del torneo activo para evitar hit a DB en cada rerún
 if "_torneo_cache" not in st.session_state:
     st.session_state._torneo_cache = None
@@ -394,6 +414,8 @@ with st.sidebar:
         "⚙️  Configuración",
     ]
     query_view = str(st.query_params.get("view", "")).strip().lower()
+    if not query_view and st.query_params.get("tv"):
+        query_view = "tv"
     pagina_default = "📺  Pantalla TV" if query_view == "tv" else "🏠  Inicio"
     pagina = st.radio("Navegación", PAGINAS, index=PAGINAS.index(pagina_default), label_visibility="collapsed")
 
@@ -1303,7 +1325,8 @@ elif pagina == "📄  Exportar PDF":
 # PÁGINA: PANTALLA TV
 # ═══════════════════════════════════════════════════════════════
 elif pagina == "📺  Pantalla TV":
-    tv_mode = str(st.query_params.get("mode", "operator")).strip().lower()
+    _tv_short_tid, _tv_short_jid = _parse_tv_short_token(st.query_params.get("tv"))
+    tv_mode = str(st.query_params.get("mode", "display" if _tv_short_jid else "operator")).strip().lower()
     tv_readonly = tv_mode in ("display", "readonly", "tv")
 
     if not torneo:
@@ -1362,14 +1385,21 @@ elif pagina == "📺  Pantalla TV":
             div[data-testid="stVerticalBlockBorderWrapper"] {
                 height:100% !important;
                 overflow:hidden;
-                border:1.5px solid rgba(0, 220, 255, 0.55) !important;
-                border-radius:10px !important;
+                border:2px solid rgba(18, 18, 18, 0.95) !important;
+                border-top:4px solid #e10600 !important;
+                border-left:4px solid #e10600 !important;
+                border-radius:6px !important;
                 background:
-                    linear-gradient(180deg, rgba(0, 220, 255, 0.08), rgba(0, 220, 255, 0.02)) !important;
+                    repeating-linear-gradient(-45deg,
+                        rgba(225, 6, 0, 0.05) 0px,
+                        rgba(225, 6, 0, 0.05) 8px,
+                        rgba(0, 0, 0, 0.02) 8px,
+                        rgba(0, 0, 0, 0.02) 16px
+                    ),
+                    #ffffff !important;
                 box-shadow:
-                    0 0 0 1px rgba(0, 220, 255, 0.12) inset,
-                    0 0 10px rgba(0, 220, 255, 0.18),
-                    0 0 20px rgba(0, 220, 255, 0.08) !important;
+                    0 0 0 1px rgba(255, 255, 255, 0.75) inset,
+                    0 4px 10px rgba(0, 0, 0, 0.22) !important;
             }
             div[data-testid="stVerticalBlock"] {
                 height:100%;
@@ -1398,7 +1428,7 @@ elif pagina == "📺  Pantalla TV":
     labels_jornada = list(opciones.keys())
     qp_jornada_id = 0
     try:
-        qp_jornada_id = int(str(st.query_params.get("jornada_id", "0")))
+        qp_jornada_id = int(str(st.query_params.get("jornada_id", str(_tv_short_jid or 0))))
     except Exception:
         qp_jornada_id = 0
     idx_default_j = 0
@@ -1459,8 +1489,8 @@ elif pagina == "📺  Pantalla TV":
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
 
-    qp_auto = str(st.query_params.get("auto", "")).strip().lower() in ("1", "true", "yes")
-    qp_hide = str(st.query_params.get("hide", "")).strip().lower() in ("1", "true", "yes")
+    qp_auto = str(st.query_params.get("auto", "0" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
+    qp_hide = str(st.query_params.get("hide", "1" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
     try:
         qp_interval = int(str(st.query_params.get("interval", "10")))
     except Exception:
@@ -1468,7 +1498,7 @@ elif pagina == "📺  Pantalla TV":
     if qp_interval not in [5, 8, 10, 12, 15, 20]:
         qp_interval = 10
 
-    if str(st.query_params.get("view", "")).strip().lower() == "tv":
+    if str(st.query_params.get("view", "")).strip().lower() == "tv" or _tv_short_jid:
         st.session_state["tv_auto"] = qp_auto
         st.session_state["tv_interval"] = qp_interval
         st.session_state["tv_hide_sidebar"] = qp_hide
@@ -1519,23 +1549,26 @@ elif pagina == "📺  Pantalla TV":
             _base_url = f"{_proto}://{_host}"
 
         tv_full_url = f"{_base_url}?{tv_query}"
+        tv_short_url = f"{_base_url}?tv={int(tid)}-{int(jornada_sel['id'])}"
 
         st.markdown("#### 🔗 Link TV")
         _col_link, _col_copy = st.columns([5, 1])
-        _col_link.code(tv_full_url, language=None)
+        _col_link.code(tv_short_url, language=None)
         _col_copy.markdown(
-            f"""<button onclick="navigator.clipboard.writeText('{tv_full_url}').then(()=>{{this.innerText='✅'}},()=>{{}})" """
+            f"""<button onclick="navigator.clipboard.writeText('{tv_short_url}').then(()=>{{this.innerText='✅'}},()=>{{}})" """
             f"""style="margin-top:4px;padding:6px 10px;border-radius:6px;border:1px solid #aaa;cursor:pointer;"""
             f"""background:#f0f0f0;font-size:13px;">📋</button>""",
             unsafe_allow_html=True,
         )
-        st.caption("Abre este link en cualquier dispositivo — el torneo y jornada se seleccionan automáticamente.")
+        st.caption("Link corto de TV: fácil de escribir y compartir.")
+        with st.expander("Ver link completo (avanzado)"):
+            st.code(tv_full_url, language=None)
 
         try:
             import qrcode
             import io as _io
             _qr = qrcode.QRCode(box_size=4, border=2)
-            _qr.add_data(tv_full_url)
+            _qr.add_data(tv_short_url)
             _qr.make(fit=True)
             _qr_img = _qr.make_image(fill_color="black", back_color="white")
             _qr_buf = _io.BytesIO()
