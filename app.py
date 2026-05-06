@@ -110,14 +110,13 @@ def _sponsor_strip_bytes(path_list: tuple[str | None, ...], cell_w: int = 320, c
 @st.cache_data(show_spinner=False)
 def _top_header_strip_bytes(
     left_path: str | None,
-    center_logo_path: str | None,
     right_path: str | None,
     center_text: str,
     cell_w: int = 350,
     cell_h: int = 66,
     padding: int = 6,
 ) -> bytes:
-    """Tira superior con 3 celdas: logo izq, centro con texto (y logo opcional), logo der."""
+    """Tira superior con 3 celdas: logo izq, nombre torneo centrado, logo der."""
     limite_original = _PILImage.MAX_IMAGE_PIXELS
     try:
         _PILImage.MAX_IMAGE_PIXELS = None
@@ -145,36 +144,69 @@ def _top_header_strip_bytes(
         _paste_logo(right_path, 2)
 
         draw = _PILDraw.Draw(strip)
-        text = (center_text or "").strip()
+        text = (center_text or "").strip().upper()
         font = _PILFont.load_default()
-
-        if center_logo_path:
-            _paste_logo(center_logo_path, 1, top_offset=2, max_h_scale=0.52)
 
         max_text_w = cell_w - 16
         text_x0 = cell_w
-        text_y_top = int(cell_h * 0.52) if center_logo_path else 0
+        text_y_top = 0
         text_h_available = max(1, cell_h - text_y_top)
 
-        # Intento con fuente TrueType para mejor legibilidad; fallback a default.
-        for size in [28, 24, 22, 20, 18, 16, 14, 12]:
+        # Intento de tipografias mas deportivas/tecnologicas; fallback a Arial/default.
+        font_candidates = [
+            "bahnschrift.ttf",
+            "Bahnschrift.ttf",
+            "segoeuib.ttf",
+            "arialbd.ttf",
+            "arial.ttf",
+        ]
+        for size in [30, 28, 26, 24, 22, 20, 18, 16, 14]:
             try:
-                f = _PILFont.truetype("arial.ttf", size=size)
+                f = None
+                for fam in font_candidates:
+                    try:
+                        f = _PILFont.truetype(fam, size=size)
+                        break
+                    except Exception:
+                        continue
+                if f is None:
+                    f = font
             except Exception:
                 f = font
-            bbox = draw.textbbox((0, 0), text, font=f)
-            tw = bbox[2] - bbox[0]
+
+            # Espaciado de letras para look mas "tech".
+            letter_space = max(1, size // 14)
+            tw = 0
+            for ch in text:
+                cb = draw.textbbox((0, 0), ch, font=f)
+                tw += (cb[2] - cb[0]) + letter_space
+            tw = max(0, tw - letter_space)
+            bbox = draw.textbbox((0, 0), "Ag", font=f)
             th = bbox[3] - bbox[1]
             if tw <= max_text_w and th <= text_h_available:
                 font = f
                 break
 
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
+        letter_space = max(1, getattr(font, "size", 16) // 14)
+        tw = 0
+        for ch in text:
+            cb = draw.textbbox((0, 0), ch, font=font)
+            tw += (cb[2] - cb[0]) + letter_space
+        tw = max(0, tw - letter_space)
+        bbox = draw.textbbox((0, 0), "Ag", font=font)
         th = bbox[3] - bbox[1]
+
         tx = text_x0 + ((cell_w - tw) // 2)
         ty = text_y_top + max(0, (text_h_available - th) // 2)
-        draw.text((tx, ty), text, fill=(20, 20, 20, 255), font=font)
+
+        # Dibujo caracter por caracter para aplicar tracking y un leve borde/sombra.
+        x_cur = tx
+        for ch in text:
+            cb = draw.textbbox((0, 0), ch, font=font)
+            cw = cb[2] - cb[0]
+            draw.text((x_cur + 1, ty + 1), ch, fill=(120, 120, 120, 255), font=font)
+            draw.text((x_cur, ty), ch, fill=(18, 18, 18, 255), font=font)
+            x_cur += cw + letter_space
 
         buff = io.BytesIO()
         strip.save(buff, format="PNG", optimize=True)
@@ -1361,13 +1393,11 @@ elif pagina == "📺  Pantalla TV":
         # Header superior: logos principales + logo de marca de agua PDF.
         _logo_left_rel = torneo.get("logo_left_path") or torneo.get("logo_path", "")
         _logo_right_rel = torneo.get("logo_right_path", "")
-        _wm_path = BASE_DIR / "assets" / "pighead_black.png"
 
         _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
         _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
         _top_strip = _top_header_strip_bytes(
             left_path=str(_top_left) if (_top_left and _top_left.exists()) else None,
-            center_logo_path=str(_wm_path) if _wm_path.exists() else None,
             right_path=str(_top_right) if (_top_right and _top_right.exists()) else None,
             center_text=str(torneo.get("nombre", "")).strip(),
             cell_w=350,
