@@ -1,4 +1,4 @@
-"""
+﻿"""
 app.py  -  Liga APJ
 App de gestión de liga de pádel americano.
 Ejecutar: streamlit run app.py
@@ -746,23 +746,6 @@ elif pagina == "📅  Jornadas":
                                 f"_{r['set1_a']}-{r['set1_b']} / {r['set2_a']}-{r['set2_b']} / {r['set3_a']}-{r['set3_b']}_"
                             )
                         else:
-                            jugadores_str = "  ·  ".join(nombres_c)
-                            st.markdown(f"**C{c['numero_cancha']}** {c['horario']}  ·  {jugadores_str}  ·  _sin resultado_")
-                        st.write("")
-
-                    bc1, bc2 = st.columns(2)
-                    if not jornada["completada"]:
-                        confirmar_comp = bc1.checkbox(
-                            "Confirmar completar",
-                            key=f"conf_comp_{jornada['id']}",
-                            help="Marca aquí para habilitar el botón",
-                        )
-                        if bc1.button(
-                            "✅ Marcar completada",
-                            key=f"comp_{jornada['id']}",
-                            use_container_width=True,
-                            disabled=not confirmar_comp,
-                        ):
                             marcar_jornada_completada(jornada["id"])
                             invalidar_cache_torneo()
                             st.rerun()
@@ -1405,6 +1388,23 @@ elif pagina == "📺  Pantalla TV":
                             f"S3 {r['set3_a']}-{r['set3_b']}"
                         )
 
+
+
+    # ── Franja de patrocinadores (solo en modo display) ──────────────
+    if tv_readonly:
+        _sponsor_rutas = []
+        for _n in range(1, 9):
+            _sp = torneo.get(f"sponsor_logo_{_n}_path", "")
+            if _sp:
+                _rp = resolver_ruta(_sp)
+                if _rp.exists():
+                    _sponsor_rutas.append(_rp)
+        if _sponsor_rutas:
+            st.markdown("<hr style='margin:0.2rem 0;border-color:#444;'>", unsafe_allow_html=True)
+            _sp_cols = st.columns(len(_sponsor_rutas))
+            for _si, _sruta in enumerate(_sponsor_rutas):
+                with _sp_cols[_si]:
+                    _mostrar_imagen(_sruta, width=90)
 
 # ═══════════════════════════════════════════════════════════════
 # PÁGINA: CONFIGURACIÓN
