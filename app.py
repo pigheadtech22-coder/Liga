@@ -1332,16 +1332,28 @@ elif pagina == "📺  Pantalla TV":
                 display:flex;
                 flex-direction:column;
             }
-            .block-container > div:first-child {margin-top:0 !important; padding-top:0 !important;}
-            div[data-testid="stImage"] {margin-top:0 !important;}
-            div[data-testid="stImage"] img {margin-top:0 !important;}
+            /* Eliminar todos los gaps/márgenes verticales entre elementos */
+            div[data-testid="stVerticalBlock"] {gap:0 !important;}
+            div[data-testid="stVerticalBlock"] > div {
+                margin-top:0 !important;
+                margin-bottom:0 !important;
+                padding-top:0 !important;
+                padding-bottom:0 !important;
+            }
+            div[data-testid="stImage"] {margin:0 !important; padding:0 !important; line-height:0;}
+            div[data-testid="stImage"] img {display:block; margin:0 !important; padding:0 !important;}
             [data-testid="stAppViewContainer"] {padding-top:0 !important; margin-top:0 !important;}
-            [data-testid="stVerticalBlock"] > div:first-child {margin-top:0 !important; padding-top:0 !important;}
+            /* columnas del header logo sin padding lateral extra */
+            div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="stColumn"] {
+                padding:0 !important;
+            }
             div[data-testid="stHorizontalBlock"] {
                 flex:1;
                 min-height:0;
                 align-items:stretch;
                 gap:0.3rem;
+                margin:0 !important;
+                padding:0 !important;
             }
             div[data-testid="stColumn"] > div:first-child {
                 height:100%;
