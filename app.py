@@ -939,10 +939,10 @@ elif pagina == "📅  Jornadas":
                                 f"_{r['set1_a']}-{r['set1_b']} / {r['set2_a']}-{r['set2_b']} / {r['set3_a']}-{r['set3_b']}_"
                             )
                         else:
-                            marcar_jornada_completada(jornada["id"])
-                            invalidar_cache_torneo()
-                            st.rerun()
-                    if bc2.button("🗑️ Eliminar jornada", key=f"del_j_{jornada['id']}", use_container_width=True):
+                            st.caption(f"C{c['numero_cancha']}: sin resultado cargado aún.")
+
+                    _, col_del_jornada = st.columns([4, 1])
+                    if col_del_jornada.button("🗑️ Eliminar jornada", key=f"del_j_{jornada['id']}", use_container_width=True):
                         eliminar_jornada(jornada["id"])
                         st.rerun()
 
