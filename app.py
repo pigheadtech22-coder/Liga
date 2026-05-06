@@ -14,6 +14,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from PIL import Image as _PILImage
+from PIL import ImageDraw as _PILDraw
+from PIL import ImageFont as _PILFont
 
 @st.cache_data(show_spinner=False)
 def _img_preview_bytes(path_str: str, max_px: int = 1400) -> bytes:
@@ -97,6 +99,82 @@ def _sponsor_strip_bytes(path_list: tuple[str | None, ...], cell_w: int = 320, c
                 x = x0 + ((cell_w - img.width) // 2)
                 y = (cell_h - img.height) // 2
                 strip.paste(img, (x, y), img)
+
+        buff = io.BytesIO()
+        strip.save(buff, format="PNG", optimize=True)
+        return buff.getvalue()
+    finally:
+        _PILImage.MAX_IMAGE_PIXELS = limite_original
+
+
+@st.cache_data(show_spinner=False)
+def _top_header_strip_bytes(
+    left_path: str | None,
+    center_logo_path: str | None,
+    right_path: str | None,
+    center_text: str,
+    cell_w: int = 350,
+    cell_h: int = 66,
+    padding: int = 6,
+) -> bytes:
+    """Tira superior con 3 celdas: logo izq, centro con texto (y logo opcional), logo der."""
+    limite_original = _PILImage.MAX_IMAGE_PIXELS
+    try:
+        _PILImage.MAX_IMAGE_PIXELS = None
+        strip = _PILImage.new("RGBA", (cell_w * 3, cell_h), (255, 255, 255, 255))
+
+        def _paste_logo(path_str: str | None, col_idx: int, top_offset: int = 0, max_h_scale: float = 1.0):
+            if not path_str:
+                return
+            p = Path(path_str)
+            if not p.exists():
+                return
+            with _PILImage.open(path_str) as img:
+                if img.mode != "RGBA":
+                    img = img.convert("RGBA")
+                max_w = max(1, cell_w - (padding * 2))
+                max_h = max(1, int((cell_h - (padding * 2)) * max_h_scale))
+                img.thumbnail((max_w, max_h), _PILImage.LANCZOS)
+                x0 = col_idx * cell_w
+                x = x0 + ((cell_w - img.width) // 2)
+                y = top_offset + ((max_h - img.height) // 2)
+                y = max(0, y)
+                strip.paste(img, (x, y), img)
+
+        _paste_logo(left_path, 0)
+        _paste_logo(right_path, 2)
+
+        draw = _PILDraw.Draw(strip)
+        text = (center_text or "").strip()
+        font = _PILFont.load_default()
+
+        if center_logo_path:
+            _paste_logo(center_logo_path, 1, top_offset=2, max_h_scale=0.52)
+
+        max_text_w = cell_w - 16
+        text_x0 = cell_w
+        text_y_top = int(cell_h * 0.52) if center_logo_path else 0
+        text_h_available = max(1, cell_h - text_y_top)
+
+        # Intento con fuente TrueType para mejor legibilidad; fallback a default.
+        for size in [28, 24, 22, 20, 18, 16, 14, 12]:
+            try:
+                f = _PILFont.truetype("arial.ttf", size=size)
+            except Exception:
+                f = font
+            bbox = draw.textbbox((0, 0), text, font=f)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            if tw <= max_text_w and th <= text_h_available:
+                font = f
+                break
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        tx = text_x0 + ((cell_w - tw) // 2)
+        ty = text_y_top + max(0, (text_h_available - th) // 2)
+        draw.text((tx, ty), text, fill=(20, 20, 20, 255), font=font)
 
         buff = io.BytesIO()
         strip.save(buff, format="PNG", optimize=True)
@@ -1224,6 +1302,9 @@ elif pagina == "📺  Pantalla TV":
             }
             .block-container > div:first-child {margin-top:0 !important; padding-top:0 !important;}
             div[data-testid="stImage"] {margin-top:0 !important;}
+            div[data-testid="stImage"] img {margin-top:0 !important;}
+            [data-testid="stAppViewContainer"] {padding-top:0 !important; margin-top:0 !important;}
+            [data-testid="stVerticalBlock"] > div:first-child {margin-top:0 !important; padding-top:0 !important;}
             div[data-testid="stHorizontalBlock"] {
                 flex:1;
                 min-height:0;
@@ -1284,14 +1365,13 @@ elif pagina == "📺  Pantalla TV":
 
         _top_left = resolver_ruta(_logo_left_rel) if _logo_left_rel else None
         _top_right = resolver_ruta(_logo_right_rel) if _logo_right_rel else None
-        _top_strip = _sponsor_strip_bytes(
-            (
-                str(_top_left) if (_top_left and _top_left.exists()) else None,
-                str(_wm_path) if _wm_path.exists() else None,
-                str(_top_right) if (_top_right and _top_right.exists()) else None,
-            ),
+        _top_strip = _top_header_strip_bytes(
+            left_path=str(_top_left) if (_top_left and _top_left.exists()) else None,
+            center_logo_path=str(_wm_path) if _wm_path.exists() else None,
+            right_path=str(_top_right) if (_top_right and _top_right.exists()) else None,
+            center_text=str(torneo.get("nombre", "")).strip(),
             cell_w=350,
-            cell_h=57,
+            cell_h=66,
             padding=6,
         )
         st.image(_top_strip, use_container_width=True)
