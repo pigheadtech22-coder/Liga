@@ -1608,9 +1608,6 @@ elif pagina == "📺  Pantalla TV":
             st.session_state["tv_last_switch_ts"] = now
             st.rerun()
         st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
-    elif tv_readonly:
-        # Sin carrusel, refresca cada 3s para reflejar cambios (fotos, nombres, resultados) automáticamente.
-        st.markdown("<meta http-equiv='refresh' content='3'>", unsafe_allow_html=True)
 
     if tv_full and not tv_readonly:
         # El toggle del operador para ocultar su propio sidebar
