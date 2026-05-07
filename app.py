@@ -1625,32 +1625,35 @@ elif pagina == "📺  Pantalla TV":
 
     # ── Diapositiva de ranking general ─────────────────────────────
     if pagina_canchas == ["__ranking__"]:
-        _rk = calcular_ranking(torneo["id"])
+        _rk = calcular_ranking(torneo["id"], completada_only=False)
         st.markdown(
             "<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General</h2>",
             unsafe_allow_html=True,
         )
-        # Dividir en hasta 3 columnas para aprovechar el ancho de la TV
-        _rk_cols_n = 3 if len(_rk) > 16 else (2 if len(_rk) > 8 else 1)
-        _rk_per_col = -(-len(_rk) // _rk_cols_n)  # ceil division
-        _rk_cols = st.columns(_rk_cols_n)
-        for _ci, _rk_col in enumerate(_rk_cols):
-            _slice = _rk[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
-            with _rk_col:
-                for _r in _slice:
-                    _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
-                    _rk_cf, _rk_cn = st.columns([1, 4])
-                    with _rk_cf:
-                        mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=54)
-                    with _rk_cn:
-                        st.markdown(
-                            f"<div style='font-size:0.95rem;line-height:1.3'>"
-                            f"<b>{_medal} {_r['nombre']}</b><br>"
-                            f"<span style='color:#e10600;font-size:1.1rem;font-weight:700'>{_r['total_pts']} pts</span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
-                    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+        if not _rk:
+            st.info("Aún no hay resultados registrados.")
+        else:
+            # Dividir en hasta 3 columnas para aprovechar el ancho de la TV
+            _rk_cols_n = 3 if len(_rk) > 16 else (2 if len(_rk) > 8 else 1)
+            _rk_per_col = -(-len(_rk) // _rk_cols_n)  # ceil division
+            _rk_cols = st.columns(_rk_cols_n)
+            for _ci, _rk_col in enumerate(_rk_cols):
+                _slice = _rk[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
+                with _rk_col:
+                    for _r in _slice:
+                        _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
+                        _rk_cf, _rk_cn = st.columns([1, 4])
+                        with _rk_cf:
+                            mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=54)
+                        with _rk_cn:
+                            st.markdown(
+                                f"<div style='font-size:0.95rem;line-height:1.3'>"
+                                f"<b>{_medal} {_r['nombre']}</b><br>"
+                                f"<span style='color:#e10600;font-size:1.1rem;font-weight:700'>{_r['total_pts']} pts</span>"
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
+                        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     else:
         # ── Diapositivas de canchas ─────────────────────────────────
         for fila in range(2):

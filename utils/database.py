@@ -401,10 +401,11 @@ def obtener_ausencias_jornada(jornada_id: int) -> dict[int, int]:
 
 # ──────────────────────── RANKING ───────────────────────────────
 
-def calcular_ranking(torneo_id: int) -> list[dict]:
+def calcular_ranking(torneo_id: int, completada_only: bool = True) -> list[dict]:
     """
     Devuelve ranking general calculado desde la DB.
     Cada entrada: id, nombre, total_pts, pts_por_jornada, jornadas_jugadas, posicion.
+    Si completada_only=False incluye también jornadas en curso (para TV en tiempo real).
     """
     from utils.liga_engine import calcular_puntos_jugador
 
@@ -413,8 +414,9 @@ def calcular_ranking(torneo_id: int) -> list[dict]:
             "SELECT * FROM jugadores WHERE torneo_id=? ORDER BY nombre", (torneo_id,)
         ).fetchall()
 
+        _jornada_filter = "AND completada=1" if completada_only else ""
         jornadas = conn.execute(
-            "SELECT * FROM jornadas WHERE torneo_id=? AND completada=1 ORDER BY numero",
+            f"SELECT * FROM jornadas WHERE torneo_id=? {_jornada_filter} ORDER BY numero",
             (torneo_id,),
         ).fetchall()
 
