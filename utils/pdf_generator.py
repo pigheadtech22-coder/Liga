@@ -19,6 +19,19 @@ def _cancha_label(n: int) -> str:
     return result
 
 
+def _nombre_apellido(nombre: str) -> str:
+    """Convierte 'Juan García' a 'Juan G.' (nombre + primera letra del apellido)."""
+    partes = nombre.strip().split()
+    if len(partes) < 2:
+        return nombre.strip()
+    return f"{partes[0]} {partes[-1][0]}."
+
+
+def _primer_nombre(nombre: str) -> str:
+    """Extrae el primer nombre de 'Juan García' -> 'Juan'."""
+    return nombre.strip().split()[0] if nombre.strip() else nombre
+
+
 # Colores corporativos
 AZUL       = (30,  80,  160)
 AZUL_CLARO = (220, 230, 245)
@@ -241,7 +254,7 @@ def generar_pdf_jornada(numero_jornada: int, canchas: list, output_path, torneo:
 
             pdf.fila_tabla(
                 cols=[medallas[i] if i < 4 else f"{i+1}o",
-                      j["nombre"],
+                      _nombre_apellido(j["nombre"]),
                       _pts_str(pts),
                       f"#{i+1} cancha"],
                 widths=widths_j,
@@ -351,7 +364,7 @@ def generar_pdf_ranking(
             pen_str = _pts_str(total_pen) if total_pen else "0"
 
             pdf.fila_tabla(
-                cols=[pos_txt, r["nombre"]] + celdas_j + [pen_str, _pts_str(total)],
+                cols=[pos_txt, _nombre_apellido(r["nombre"])] + celdas_j + [pen_str, _pts_str(total)],
                 widths=widths_r,
                 aligns=aligns_r,
                 fila_num=pos,
@@ -363,7 +376,7 @@ def generar_pdf_ranking(
             total_juego = r.get("total_juego", total - total_pen)
             pen_str = _pts_str(total_pen) if total_pen else "0"
             pdf.fila_tabla(
-                cols=[pos_txt, r["nombre"], str(pj), _pts_str(total_juego), pen_str, _pts_str(total)],
+                cols=[pos_txt, _nombre_apellido(r["nombre"]), str(pj), _pts_str(total_juego), pen_str, _pts_str(total)],
                 widths=widths_r,
                 aligns=aligns_r,
                 fila_num=pos,
@@ -432,7 +445,7 @@ def generar_pdf_planilla_jornada(
 
         pdf.set_font("Helvetica", "", 10)
         for idx, nombre in enumerate(p, start=1):
-            pdf.cell(75, 7, f"J{idx}: {nombre}", border=1, align="L")
+            pdf.cell(75, 7, f"J{idx}: {_nombre_apellido(nombre)}", border=1, align="L")
             pdf.cell(115, 7, "", border=1, align="L")
             pdf.ln(7)
         pdf.ln(3)
@@ -442,19 +455,19 @@ def generar_pdf_planilla_jornada(
         pdf.ln(6)
 
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 7, f"Set 1 ({p[0].split()[0]}+{p[1].split()[0]})  ____  -  ____  ({p[2].split()[0]}+{p[3].split()[0]})")
+        pdf.cell(0, 7, f"Set 1 ({_primer_nombre(p[0])}+{_primer_nombre(p[1])})  ____  -  ____  ({_primer_nombre(p[2])}+{_primer_nombre(p[3])})")
         pdf.ln(7)
-        pdf.cell(0, 7, f"Set 2 ({p[0].split()[0]}+{p[2].split()[0]})  ____  -  ____  ({p[1].split()[0]}+{p[3].split()[0]})")
+        pdf.cell(0, 7, f"Set 2 ({_primer_nombre(p[0])}+{_primer_nombre(p[2])})  ____  -  ____  ({_primer_nombre(p[1])}+{_primer_nombre(p[3])})")
         pdf.ln(7)
-        pdf.cell(0, 7, f"Set 3 ({p[0].split()[0]}+{p[3].split()[0]})  ____  -  ____  ({p[1].split()[0]}+{p[2].split()[0]})")
+        pdf.cell(0, 7, f"Set 3 ({_primer_nombre(p[0])}+{_primer_nombre(p[3])})  ____  -  ____  ({_primer_nombre(p[1])}+{_primer_nombre(p[2])})")
         pdf.ln(8)
 
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(95, 7, f"Firma J1 ({p[0].split()[0]}): _____________________")
-        pdf.cell(95, 7, f"Firma J2 ({p[1].split()[0]}): _____________________")
+        pdf.cell(95, 7, f"Firma J1 ({_primer_nombre(p[0])}): _____________________")
+        pdf.cell(95, 7, f"Firma J2 ({_primer_nombre(p[1])}): _____________________")
         pdf.ln(7)
-        pdf.cell(95, 7, f"Firma J3 ({p[2].split()[0]}): _____________________")
-        pdf.cell(95, 7, f"Firma J4 ({p[3].split()[0]}): _____________________")
+        pdf.cell(95, 7, f"Firma J3 ({_primer_nombre(p[2])}): _____________________")
+        pdf.cell(95, 7, f"Firma J4 ({_primer_nombre(p[3])}): _____________________")
         pdf.ln(6)
 
         sponsor_paths = [
