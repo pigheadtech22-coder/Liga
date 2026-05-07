@@ -1482,7 +1482,23 @@ elif pagina == "📺  Pantalla TV":
 
     canchas_por_pagina = 10
     paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
-    paginas.append(["__ranking__"])  # diapositiva de ranking al final del carrusel
+
+    # Ranking en páginas pequeñas para evitar que desborde y empuje el footer.
+    _rk_tv = calcular_ranking(torneo["id"], completada_only=False)
+    _rk_por_pagina = 12
+    _rk_paginas = [_rk_tv[i:i + _rk_por_pagina] for i in range(0, len(_rk_tv), _rk_por_pagina)]
+    if not _rk_paginas:
+        _rk_paginas = [[]]
+    _rk_total_paginas = len(_rk_paginas)
+    for _rk_idx, _rk_rows in enumerate(_rk_paginas, start=1):
+        paginas.append(
+            {
+                "kind": "ranking",
+                "rows": _rk_rows,
+                "idx": _rk_idx,
+                "total": _rk_total_paginas,
+            }
+        )
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
 
@@ -1609,27 +1625,26 @@ elif pagina == "📺  Pantalla TV":
             unsafe_allow_html=True,
         )
 
-    pagina_canchas = paginas[st.session_state["tv_page_idx"]] if paginas else []
+    pagina_actual = paginas[st.session_state["tv_page_idx"]] if paginas else []
     tv_center = st.container()
     with tv_center:
         # ── Diapositiva de ranking general ─────────────────────────
-        if pagina_canchas == ["__ranking__"]:
-            _rk = calcular_ranking(torneo["id"], completada_only=False)
+        if isinstance(pagina_actual, dict) and pagina_actual.get("kind") == "ranking":
+            _rk = pagina_actual.get("rows", [])
+            _rk_idx = int(pagina_actual.get("idx", 1))
+            _rk_total = int(pagina_actual.get("total", 1))
             st.markdown(
-                "<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General</h2>",
+                f"<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General ({_rk_idx}/{_rk_total})</h2>",
                 unsafe_allow_html=True,
             )
             if not _rk:
                 st.info("Aún no hay resultados registrados.")
             else:
-                # Limitar filas visibles para no invadir footer en TV pequeñas.
-                _max_rank_items = 18
-                _rk_view = _rk[:_max_rank_items]
-                _rk_cols_n = 3 if len(_rk_view) > 12 else (2 if len(_rk_view) > 6 else 1)
-                _rk_per_col = -(-len(_rk_view) // _rk_cols_n)  # ceil division
+                _rk_cols_n = 3 if len(_rk) > 9 else (2 if len(_rk) > 5 else 1)
+                _rk_per_col = -(-len(_rk) // _rk_cols_n)  # ceil division
                 _rk_cols = st.columns(_rk_cols_n)
                 for _ci, _rk_col in enumerate(_rk_cols):
-                    _slice = _rk_view[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
+                    _slice = _rk[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
                     with _rk_col:
                         for _r in _slice:
                             _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
@@ -1652,10 +1667,10 @@ elif pagina == "📺  Pantalla TV":
                 for col in range(5):
                     idx = fila * 5 + col
                     with cols[col]:
-                        if idx >= len(pagina_canchas):
+                        if idx >= len(pagina_actual):
                             st.write("")
                             continue
-                        c = pagina_canchas[idx]
+                        c = pagina_actual[idx]
                         jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
                         # Calcular puntos por posición si hay resultado
                         _pts_map: dict[int, int] = {}
