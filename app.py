@@ -1451,28 +1451,10 @@ elif pagina == "📺  Pantalla TV":
 
     canchas_por_pagina = 10
     paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
-
-    # Ranking en una sola diapositiva de pantalla completa (sin header/footer).
-    _rk_tv = calcular_ranking(torneo["id"], completada_only=False)
-    _rk_paginas = [_rk_tv]
-    if not _rk_paginas:
-        _rk_paginas = [[]]
-    _rk_total_paginas = len(_rk_paginas)
-    for _rk_idx, _rk_rows in enumerate(_rk_paginas, start=1):
-        paginas.append(
-            {
-                "kind": "ranking",
-                "rows": _rk_rows,
-                "idx": _rk_idx,
-                "total": _rk_total_paginas,
-            }
-        )
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
-    _tv_slide = paginas[st.session_state["tv_page_idx"]] if paginas else []
-    _tv_is_ranking_slide = isinstance(_tv_slide, dict) and _tv_slide.get("kind") == "ranking"
 
-    if tv_readonly and not _tv_is_ranking_slide:
+    if tv_readonly:
         # Header superior: logo personalizado TV o strip con logos + nombre.
         _tv_header_rel = torneo.get("tv_header_logo_path", "")
         if _tv_header_rel:
@@ -1627,100 +1609,59 @@ elif pagina == "📺  Pantalla TV":
             unsafe_allow_html=True,
         )
 
-    pagina_actual = paginas[st.session_state["tv_page_idx"]] if paginas else []
-    tv_center = st.empty()
-    with tv_center:
-        # ── Diapositiva de ranking general ─────────────────────────
-        if isinstance(pagina_actual, dict) and pagina_actual.get("kind") == "ranking":
-            _rk = pagina_actual.get("rows", [])
-            _rk_idx = int(pagina_actual.get("idx", 1))
-            _rk_total = int(pagina_actual.get("total", 1))
-            _rk_n = len(_rk)
-            _rk_photo = 34 if _rk_n > 28 else (40 if _rk_n > 20 else 48)
-            _rk_name_fs = "0.84rem" if _rk_n > 28 else ("0.9rem" if _rk_n > 20 else "0.95rem")
-            _rk_pts_fs = "0.95rem" if _rk_n > 28 else ("1.0rem" if _rk_n > 20 else "1.1rem")
-            _rk_gap_h = 1 if _rk_n > 28 else 3
-            st.markdown(
-                f"<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General ({_rk_idx}/{_rk_total})</h2>",
-                unsafe_allow_html=True,
-            )
-            if not _rk:
-                st.info("Aún no hay resultados registrados.")
-            else:
-                _rk_cols_n = 3 if len(_rk) > 9 else (2 if len(_rk) > 5 else 1)
-                _rk_per_col = -(-len(_rk) // _rk_cols_n)  # ceil division
-                _rk_cols = st.columns(_rk_cols_n)
-                for _ci, _rk_col in enumerate(_rk_cols):
-                    _slice = _rk[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
-                    with _rk_col:
-                        for _r in _slice:
-                            _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
-                            _rk_cf, _rk_cn = st.columns([1, 4])
-                            with _rk_cf:
-                                mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=_rk_photo)
-                            with _rk_cn:
-                                st.markdown(
-                                    f"<div style='font-size:{_rk_name_fs};line-height:1.2'>"
-                                    f"<b>{_medal} {_r['nombre']}</b><br>"
-                                    f"<span style='color:#e10600;font-size:{_rk_pts_fs};font-weight:700'>{_r['total_pts']} pts</span>"
-                                    f"</div>",
-                                    unsafe_allow_html=True,
-                                )
-                            st.markdown(f"<div style='height:{_rk_gap_h}px'></div>", unsafe_allow_html=True)
-        else:
-            # ── Diapositivas de canchas ─────────────────────────────
-            for fila in range(2):
-                cols = st.columns(5)
-                for col in range(5):
-                    idx = fila * 5 + col
-                    with cols[col]:
-                        if idx >= len(pagina_actual):
-                            st.write("")
-                            continue
-                        c = pagina_actual[idx]
-                        jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
-                        # Calcular puntos por posición si hay resultado
-                        _pts_map: dict[int, int] = {}
-                        if c.get("resultado"):
-                            _r = c["resultado"]
-                            _pts_tuple = calcular_puntos_cancha(
-                                _r["set1_a"], _r["set1_b"],
-                                _r["set2_a"], _r["set2_b"],
-                                _r["set3_a"], _r["set3_b"],
+    pagina_canchas = paginas[st.session_state["tv_page_idx"]] if paginas else []
+    for fila in range(2):
+        cols = st.columns(5)
+        for col in range(5):
+            idx = fila * 5 + col
+            with cols[col]:
+                if idx >= len(pagina_canchas):
+                    st.write("")
+                    continue
+                c = pagina_canchas[idx]
+                jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
+                # Calcular puntos por posición si hay resultado
+                _pts_map: dict[int, int] = {}
+                if c.get("resultado"):
+                    _r = c["resultado"]
+                    _pts_tuple = calcular_puntos_cancha(
+                        _r["set1_a"], _r["set1_b"],
+                        _r["set2_a"], _r["set2_b"],
+                        _r["set3_a"], _r["set3_b"],
+                    )
+                    _pts_map = {1: _pts_tuple[0], 2: _pts_tuple[1], 3: _pts_tuple[2], 4: _pts_tuple[3]}
+                with st.container(border=True):
+                    st.markdown(f"### Cancha {c['numero_cancha']}")
+                    st.caption(f"⏰ {c.get('horario') or '-'}")
+
+                    for j in jugadores_orden:
+                        cf, cn = st.columns([1, 4])
+                        with cf:
+                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=63)
+                        with cn:
+                            _pos = j.get("posicion", 0)
+                            _pts_badge = (
+                                f" <span style='color:#e10600;font-weight:700'>{_pts_map[_pos]:+d}pts</span>"
+                                if _pos in _pts_map else ""
                             )
-                            _pts_map = {1: _pts_tuple[0], 2: _pts_tuple[1], 3: _pts_tuple[2], 4: _pts_tuple[3]}
-                        with st.container(border=True):
-                            st.markdown(f"### Cancha {c['numero_cancha']}")
-                            st.caption(f"⏰ {c.get('horario') or '-'}")
+                            st.markdown(
+                                f"<span style='font-size:1rem'>**P{_pos} · {j.get('nombre', '-')}**{_pts_badge}</span>",
+                                unsafe_allow_html=True,
+                            )
+                        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-                            for j in jugadores_orden:
-                                cf, cn = st.columns([1, 4])
-                                with cf:
-                                    mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=63)
-                                with cn:
-                                    _pos = j.get("posicion", 0)
-                                    _pts_badge = (
-                                        f" <span style='color:#e10600;font-weight:700'>{_pts_map[_pos]:+d}pts</span>"
-                                        if _pos in _pts_map else ""
-                                    )
-                                    st.markdown(
-                                        f"<span style='font-size:1rem'>**P{_pos} · {j.get('nombre', '-')}**{_pts_badge}</span>",
-                                        unsafe_allow_html=True,
-                                    )
-                                st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-                            if c.get("resultado"):
-                                _r = c["resultado"]
-                                st.caption(
-                                    f"S1 {_r['set1_a']}-{_r['set1_b']} | "
-                                    f"S2 {_r['set2_a']}-{_r['set2_b']} | "
-                                    f"S3 {_r['set3_a']}-{_r['set3_b']}"
-                                )
+                    if c.get("resultado"):
+                        _r = c["resultado"]
+                        st.caption(
+                            f"S1 {_r['set1_a']}-{_r['set1_b']} | "
+                            f"S2 {_r['set2_a']}-{_r['set2_b']} | "
+                            f"S3 {_r['set3_a']}-{_r['set3_b']}"
+                        )
 
 
 
     # ── Franja de patrocinadores (solo en modo display) ──────────────
-    if tv_readonly and not _tv_is_ranking_slide:
+    if tv_readonly:
         _sponsor_rutas = []
         for _n in range(1, 9):
             _sp = torneo.get(f"sponsor_logo_{_n}_path", "")
