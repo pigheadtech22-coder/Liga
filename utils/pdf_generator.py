@@ -440,7 +440,7 @@ def generar_pdf_planilla_jornada(
 
         pdf.set_font("Helvetica", "", 10)
         for idx, nombre in enumerate(p, start=1):
-            pdf.cell(75, 7, f"J{idx}: {_nombre_apellido(nombre)}", border=1, align="L")
+            pdf.cell(75, 7, f"J{idx}: {nombre}", border=1, align="L")
             pdf.cell(115, 7, "", border=1, align="L")
             pdf.ln(7)
         pdf.ln(3)
