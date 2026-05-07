@@ -1497,6 +1497,12 @@ elif pagina == "📺  Pantalla TV":
     paginas.append(["__ranking__"])  # diapositiva de ranking al final del carrusel
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
+    if tv_readonly:
+        try:
+            _qp_pg = int(str(st.query_params.get("pg", "0")))
+        except Exception:
+            _qp_pg = 0
+        st.session_state["tv_page_idx"] = max(0, min(_qp_pg, total_paginas - 1))
 
     qp_auto = str(st.query_params.get("auto", "0" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
     qp_hide = str(st.query_params.get("hide", "1" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
@@ -1600,15 +1606,33 @@ elif pagina == "📺  Pantalla TV":
             st.rerun()
 
     if auto_tv and total_paginas > 1:
-        now = time.time()
-        last_ts = st.session_state.get("tv_last_switch_ts")
-        if not last_ts:
-            st.session_state["tv_last_switch_ts"] = now
-        elif now - last_ts >= float(intervalo):
-            st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
-            st.session_state["tv_last_switch_ts"] = now
-            st.rerun()
-        st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
+        if tv_readonly:
+            _curr_pg = int(st.session_state.get("tv_page_idx", 0))
+            _next_pg = (_curr_pg + 1) % total_paginas
+            _qp_next = {k: str(v) for k, v in st.query_params.items()}
+            _qp_next["pg"] = str(_next_pg)
+            try:
+                _current_url = str(st.context.url)
+                _base_url = _current_url.split("?")[0].rstrip("/")
+            except Exception:
+                _host = st.context.headers.get("host", "localhost:8501")
+                _proto = "https" if (not _host.startswith("localhost") and not _host.startswith("127.")) else "http"
+                _base_url = f"{_proto}://{_host}"
+            _next_url = f"{_base_url}?{urlencode(_qp_next)}"
+            st.markdown(
+                f"<meta http-equiv='refresh' content='{int(intervalo)};url={_next_url}'>",
+                unsafe_allow_html=True,
+            )
+        else:
+            now = time.time()
+            last_ts = st.session_state.get("tv_last_switch_ts")
+            if not last_ts:
+                st.session_state["tv_last_switch_ts"] = now
+            elif now - last_ts >= float(intervalo):
+                st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
+                st.session_state["tv_last_switch_ts"] = now
+                st.rerun()
+            st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
 
     if tv_full and not tv_readonly:
         # El toggle del operador para ocultar su propio sidebar
