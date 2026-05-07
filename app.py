@@ -1435,7 +1435,44 @@ elif pagina == "📺  Pantalla TV":
                 break
     if tv_readonly:
         jornada_sel = opciones[labels_jornada[idx_default_j]]
+    else:
+        jornada_sel = opciones[
+            st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
+        ]
+    canchas = obtener_canchas_jornada(jornada_sel["id"])
+    if not canchas:
+        st.info("La jornada no tiene canchas cargadas.")
+        st.stop()
 
+    if st.session_state.get("tv_last_jornada_id") != jornada_sel["id"]:
+        st.session_state["tv_last_jornada_id"] = jornada_sel["id"]
+        st.session_state["tv_page_idx"] = 0
+        st.session_state["tv_last_switch_ts"] = time.time()
+
+    canchas_por_pagina = 10
+    paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
+
+    # Ranking en una sola diapositiva de pantalla completa (sin header/footer).
+    _rk_tv = calcular_ranking(torneo["id"], completada_only=False)
+    _rk_paginas = [_rk_tv]
+    if not _rk_paginas:
+        _rk_paginas = [[]]
+    _rk_total_paginas = len(_rk_paginas)
+    for _rk_idx, _rk_rows in enumerate(_rk_paginas, start=1):
+        paginas.append(
+            {
+                "kind": "ranking",
+                "rows": _rk_rows,
+                "idx": _rk_idx,
+                "total": _rk_total_paginas,
+            }
+        )
+    total_paginas = max(1, len(paginas))
+    st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
+    _tv_slide = paginas[st.session_state["tv_page_idx"]] if paginas else []
+    _tv_is_ranking_slide = isinstance(_tv_slide, dict) and _tv_slide.get("kind") == "ranking"
+
+    if tv_readonly and not _tv_is_ranking_slide:
         # Header superior: logo personalizado TV o strip con logos + nombre.
         _tv_header_rel = torneo.get("tv_header_logo_path", "")
         if _tv_header_rel:
@@ -1466,41 +1503,6 @@ elif pagina == "📺  Pantalla TV":
             f"Página <span id='tv_pg_num'></span></p>",
             unsafe_allow_html=True,
         )
-    else:
-        jornada_sel = opciones[
-            st.selectbox("Jornada a mostrar", labels_jornada, index=idx_default_j, key="tv_jornada")
-        ]
-    canchas = obtener_canchas_jornada(jornada_sel["id"])
-    if not canchas:
-        st.info("La jornada no tiene canchas cargadas.")
-        st.stop()
-
-    if st.session_state.get("tv_last_jornada_id") != jornada_sel["id"]:
-        st.session_state["tv_last_jornada_id"] = jornada_sel["id"]
-        st.session_state["tv_page_idx"] = 0
-        st.session_state["tv_last_switch_ts"] = time.time()
-
-    canchas_por_pagina = 10
-    paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
-
-    # Ranking en páginas pequeñas para evitar que desborde y empuje el footer.
-    _rk_tv = calcular_ranking(torneo["id"], completada_only=False)
-    _rk_por_pagina = 12
-    _rk_paginas = [_rk_tv[i:i + _rk_por_pagina] for i in range(0, len(_rk_tv), _rk_por_pagina)]
-    if not _rk_paginas:
-        _rk_paginas = [[]]
-    _rk_total_paginas = len(_rk_paginas)
-    for _rk_idx, _rk_rows in enumerate(_rk_paginas, start=1):
-        paginas.append(
-            {
-                "kind": "ranking",
-                "rows": _rk_rows,
-                "idx": _rk_idx,
-                "total": _rk_total_paginas,
-            }
-        )
-    total_paginas = max(1, len(paginas))
-    st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
 
     qp_auto = str(st.query_params.get("auto", "0" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
     qp_hide = str(st.query_params.get("hide", "1" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
@@ -1626,13 +1628,18 @@ elif pagina == "📺  Pantalla TV":
         )
 
     pagina_actual = paginas[st.session_state["tv_page_idx"]] if paginas else []
-    tv_center = st.container()
+    tv_center = st.empty()
     with tv_center:
         # ── Diapositiva de ranking general ─────────────────────────
         if isinstance(pagina_actual, dict) and pagina_actual.get("kind") == "ranking":
             _rk = pagina_actual.get("rows", [])
             _rk_idx = int(pagina_actual.get("idx", 1))
             _rk_total = int(pagina_actual.get("total", 1))
+            _rk_n = len(_rk)
+            _rk_photo = 34 if _rk_n > 28 else (40 if _rk_n > 20 else 48)
+            _rk_name_fs = "0.84rem" if _rk_n > 28 else ("0.9rem" if _rk_n > 20 else "0.95rem")
+            _rk_pts_fs = "0.95rem" if _rk_n > 28 else ("1.0rem" if _rk_n > 20 else "1.1rem")
+            _rk_gap_h = 1 if _rk_n > 28 else 3
             st.markdown(
                 f"<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General ({_rk_idx}/{_rk_total})</h2>",
                 unsafe_allow_html=True,
@@ -1650,16 +1657,16 @@ elif pagina == "📺  Pantalla TV":
                             _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
                             _rk_cf, _rk_cn = st.columns([1, 4])
                             with _rk_cf:
-                                mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=54)
+                                mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=_rk_photo)
                             with _rk_cn:
                                 st.markdown(
-                                    f"<div style='font-size:0.95rem;line-height:1.3'>"
+                                    f"<div style='font-size:{_rk_name_fs};line-height:1.2'>"
                                     f"<b>{_medal} {_r['nombre']}</b><br>"
-                                    f"<span style='color:#e10600;font-size:1.1rem;font-weight:700'>{_r['total_pts']} pts</span>"
+                                    f"<span style='color:#e10600;font-size:{_rk_pts_fs};font-weight:700'>{_r['total_pts']} pts</span>"
                                     f"</div>",
                                     unsafe_allow_html=True,
                                 )
-                            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='height:{_rk_gap_h}px'></div>", unsafe_allow_html=True)
         else:
             # ── Diapositivas de canchas ─────────────────────────────
             for fila in range(2):
@@ -1713,7 +1720,7 @@ elif pagina == "📺  Pantalla TV":
 
 
     # ── Franja de patrocinadores (solo en modo display) ──────────────
-    if tv_readonly:
+    if tv_readonly and not _tv_is_ranking_slide:
         _sponsor_rutas = []
         for _n in range(1, 9):
             _sp = torneo.get(f"sponsor_logo_{_n}_path", "")
