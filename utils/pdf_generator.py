@@ -9,6 +9,16 @@ from PIL import Image
 
 BASE_DIR = Path(__file__).parent.parent
 
+
+def _cancha_label(n: int) -> str:
+    """Convierte número de cancha a letra(s): 1→A, 2→B, ..., 26→Z, 27→AA."""
+    result = ""
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        result = chr(65 + rem) + result
+    return result
+
+
 # Colores corporativos
 AZUL       = (30,  80,  160)
 AZUL_CLARO = (220, 230, 245)
@@ -217,7 +227,7 @@ def generar_pdf_jornada(numero_jornada: int, canchas: list, output_path, torneo:
         if pdf.get_y() > 230:
             pdf.add_page()
 
-        pdf.titulo_seccion(f"CANCHA {cancha['numero']}")
+        pdf.titulo_seccion(f"CANCHA {_cancha_label(cancha['numero'])}")
         pdf.encabezado_tabla(headers_j, widths_j, aligns_j)
 
         for i, j in enumerate(cancha["jugadores"]):
@@ -324,7 +334,7 @@ def generar_pdf_ranking(
             color = NEGRO
             bold = False
 
-        pos_txt = {1: "1ro", 2: "2do", 3: "3ro"}.get(pos, f"{pos}ro")
+        pos_txt = str(pos)
 
         if detallado:
             celdas_j = []
@@ -405,7 +415,7 @@ def generar_pdf_planilla_jornada(
 
         p = [j["nombre"] for j in jugadores]
         horario = cancha.get("horario", "")
-        titulo = f"CANCHA {cancha['numero_cancha']}"
+        titulo = f"CANCHA {_cancha_label(cancha['numero_cancha'])}"
 
         pdf.titulo_seccion(titulo)
 
