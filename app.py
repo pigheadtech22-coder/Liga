@@ -1675,6 +1675,17 @@ elif pagina == "📺  Pantalla TV":
             st.query_params["hide"] = "1" if tv_full else "0"
             st.rerun()
 
+    if auto_tv and tv_readonly:
+        now = time.time()
+        last_ts = st.session_state.get("tv_last_switch_ts")
+        if not last_ts:
+            st.session_state["tv_last_switch_ts"] = now
+        elif now - last_ts >= max(1.0, float(intervalo) - 1.0):
+            if total_paginas > 1:
+                st.session_state["tv_page_idx"] = (st.session_state["tv_page_idx"] + 1) % total_paginas
+            st.session_state["tv_last_switch_ts"] = now
+        st.markdown(f"<meta http-equiv='refresh' content='{int(intervalo)}'>", unsafe_allow_html=True)
+
     if auto_tv and total_paginas > 1 and not tv_readonly:
         now = time.time()
         last_ts = st.session_state.get("tv_last_switch_ts")
