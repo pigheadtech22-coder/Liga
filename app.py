@@ -362,6 +362,23 @@ def color_pts(n) -> str:
         return "gray"
 
 
+def cancha_virtual_label(numero: int) -> str:
+    """Convierte 1->A, 2->B, ..., 26->Z, 27->AA, etc."""
+    try:
+        n = int(numero)
+    except (TypeError, ValueError):
+        return str(numero)
+    if n <= 0:
+        return str(numero)
+
+    letras = ""
+    while n > 0:
+        n -= 1
+        letras = chr(ord("A") + (n % 26)) + letras
+        n //= 26
+    return letras
+
+
 def mostrar_foto(foto_sin_fondo: str, foto_original: str, size: int = 60):
     for ruta_rel in [foto_sin_fondo, foto_original]:
         if ruta_rel:
@@ -504,7 +521,7 @@ if pagina == "🏠  Inicio":
                     lider = c["jugadores"][lider_idx] if lider_idx < len(c["jugadores"]) else c["jugadores"][0]
                     p_lider = pts[lider_idx]
                     cc, cn, cp = st.columns([1, 4, 2])
-                    cc.markdown(f"**C{c['numero_cancha']}**")
+                    cc.markdown(f"**Cancha {cancha_virtual_label(c['numero_cancha'])}**")
                     cn.write(lider["nombre"])
                     cp.markdown(f":{color_pts(p_lider)}[**{pts_str(p_lider)}**]")
 
@@ -807,7 +824,7 @@ elif pagina == "📅  Jornadas":
                 canchas_gen: list[list[dict]] = []
 
                 for cancha_n in range(1, int(canchas_a_usar) + 1):
-                    st.markdown(f"#### Cancha {cancha_n}")
+                    st.markdown(f"#### Cancha {cancha_virtual_label(cancha_n)}")
                     grupo_ids = []
                     cols = st.columns(4)
                     for pos in range(1, 5):
@@ -840,13 +857,13 @@ elif pagina == "📅  Jornadas":
                     if horarios_cfg:
                         default_h = horarios_cfg[i] if i < len(horarios_cfg) else horarios_cfg[-1]
                         h = st.selectbox(
-                            f"Horario Cancha {i+1}",
+                            f"Horario Cancha {cancha_virtual_label(i+1)}",
                             options=horarios_cfg,
                             index=horarios_cfg.index(default_h),
                             key=f"j1_horario_{i+1}",
                         )
                     else:
-                        h = st.text_input(f"Horario Cancha {i+1}", key=f"j1_horario_txt_{i+1}")
+                        h = st.text_input(f"Horario Cancha {cancha_virtual_label(i+1)}", key=f"j1_horario_txt_{i+1}")
                     horarios_jornada.append(h)
 
                 if st.button("✅ Crear Jornada 1 manual", type="primary", disabled=(len(canchas_gen) == 0)):
@@ -889,13 +906,13 @@ elif pagina == "📅  Jornadas":
                     if horarios_cfg:
                         default_h = horarios_cfg[i] if i < len(horarios_cfg) else horarios_cfg[-1]
                         h = st.selectbox(
-                            f"Horario Cancha {i+1}",
+                            f"Horario Cancha {cancha_virtual_label(i+1)}",
                             options=horarios_cfg,
                             index=horarios_cfg.index(default_h),
                             key=f"auto_horario_{i+1}",
                         )
                     else:
-                        h = st.text_input(f"Horario Cancha {i+1}", key=f"auto_horario_txt_{i+1}")
+                        h = st.text_input(f"Horario Cancha {cancha_virtual_label(i+1)}", key=f"auto_horario_txt_{i+1}")
                     horarios_jornada.append(h)
 
                 if st.button("⚡ Generar jornada automática", type="primary", disabled=(len(canchas_gen) == 0)):
@@ -922,7 +939,8 @@ elif pagina == "📅  Jornadas":
                     for c in canchas:
                         ctop1, ctop2 = st.columns([2, 1])
                         cancha_fisica_label = f" · {c.get('cancha_fisica', '').strip()}" if c.get("cancha_fisica") else ""
-                        ctop1.markdown(f"**Cancha {c['numero_cancha']}{cancha_fisica_label}**")
+                        _cv_label = cancha_virtual_label(c["numero_cancha"])
+                        ctop1.markdown(f"**Cancha {_cv_label}{cancha_fisica_label}**")
                         nuevo_horario = ctop2.text_input(
                             "Horario",
                             value=c["horario"] or "",
@@ -933,7 +951,7 @@ elif pagina == "📅  Jornadas":
                         if nuevo_horario != (c["horario"] or ""):
                             try:
                                 actualizar_horario_cancha(c["id"], nuevo_horario.strip())
-                                st.success(f"Horario actualizado en Cancha {c['numero_cancha']}")
+                                st.success(f"Horario actualizado en Cancha {_cv_label}")
                                 st.rerun()
                             except ValueError as e:
                                 st.error(str(e))
@@ -953,7 +971,7 @@ elif pagina == "📅  Jornadas":
                             if nueva_fisica_val != actual_fisica:
                                 try:
                                     actualizar_cancha_fisica_cancha_jornada(c["id"], nueva_fisica_val)
-                                    st.success(f"Cancha física actualizada en Cancha {c['numero_cancha']}")
+                                    st.success(f"Cancha física actualizada en Cancha {_cv_label}")
                                     st.rerun()
                                 except ValueError as e:
                                     st.error(str(e))
@@ -971,12 +989,12 @@ elif pagina == "📅  Jornadas":
                                 for n, p in zip(nombres_c, pts)
                             )
                             st.markdown(
-                                f"**C{c['numero_cancha']}** {c['horario']}  ·  "
+                                f"**Cancha {cancha_virtual_label(c['numero_cancha'])}** {c['horario']}  ·  "
                                 f"{resumen_pts}  ·  "
                                 f"_{r['set1_a']}-{r['set1_b']} / {r['set2_a']}-{r['set2_b']} / {r['set3_a']}-{r['set3_b']}_"
                             )
                         else:
-                            st.caption(f"C{c['numero_cancha']}: sin resultado cargado aún.")
+                            st.caption(f"Cancha {cancha_virtual_label(c['numero_cancha'])}: sin resultado cargado aún.")
 
                     st.markdown("#### ✅ Asistencia por horario")
                     grupos_horario: dict[str, list[dict]] = {}
@@ -988,7 +1006,7 @@ elif pagina == "📅  Jornadas":
                                 {
                                     "jugador_id": int(_j.get("jugador_id", 0) or 0),
                                     "nombre": _j.get("nombre", "-"),
-                                    "cancha": int(c.get("numero_cancha", 0) or 0),
+                                    "cancha": cancha_virtual_label(c.get("numero_cancha", 0) or 0),
                                     "posicion": int(_j.get("posicion", 0) or 0),
                                 }
                             )
@@ -1000,7 +1018,7 @@ elif pagina == "📅  Jornadas":
                         for _idx, _p in enumerate(_lista):
                             _col = cols_asis[_idx % 2]
                             _jid = _p["jugador_id"]
-                            _label = f"C{_p['cancha']} · P{_p['posicion']} · {_p['nombre']}"
+                            _label = f"Cancha {_p['cancha']} · P{_p['posicion']} · {_p['nombre']}"
                             _checked = _col.checkbox(
                                 _label,
                                 value=(_jid in asistencia_actual),
@@ -1133,7 +1151,7 @@ elif pagina == "🏓  Resultados":
         p = [j["nombre"].split()[0] for j in jugadores]
         res = c["resultado"]
 
-        with st.expander(f"🎾 Cancha {c['numero_cancha']}  —  {c['horario']}", expanded=(res is None)):
+        with st.expander(f"🎾 Cancha {cancha_virtual_label(c['numero_cancha'])}  —  {c['horario']}", expanded=(res is None)):
             st.caption(
                 f"Set 1: {p[0]}+{p[1]} vs {p[2]}+{p[3]}  |  "
                 f"Set 2: {p[0]}+{p[2]} vs {p[1]}+{p[3]}  |  "
@@ -1702,7 +1720,7 @@ elif pagina == "📺  Pantalla TV":
                     _pts_map = {1: _pts_tuple[0], 2: _pts_tuple[1], 3: _pts_tuple[2], 4: _pts_tuple[3]}
                 with st.container(border=True):
                     _cf = (c.get("cancha_fisica") or "").strip()
-                    _titulo_cancha = f"Cancha {c['numero_cancha']}"
+                    _titulo_cancha = f"Cancha {cancha_virtual_label(c['numero_cancha'])}"
                     if _cf:
                         _titulo_cancha += f" · {_cf}"
                     st.markdown(f"### {_titulo_cancha}")
