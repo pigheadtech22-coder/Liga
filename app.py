@@ -229,7 +229,7 @@ from utils.database import (
     crear_horarios, listar_horarios,
     crear_jugador, listar_jugadores, actualizar_jugador, eliminar_jugador,
     listar_jornadas, marcar_jornada_completada, eliminar_jornada,
-    actualizar_horario_cancha,
+    actualizar_horario_cancha, actualizar_cancha_fisica_cancha_jornada,
     obtener_canchas_jornada,
     guardar_resultado, guardar_ausencias_jornada, obtener_ausencias_jornada,
     guardar_asistencia_jornada, obtener_asistencia_jornada,
@@ -915,10 +915,14 @@ elif pagina == "📅  Jornadas":
                     expanded=not jornada["completada"],
                 ):
                     canchas = obtener_canchas_jornada(jornada["id"])
+                    canchas_fisicas_cfg = [
+                        x.strip() for x in str(torneo.get("canchas_fisicas_txt", "")).splitlines() if x.strip()
+                    ]
                     asistencia_actual = obtener_asistencia_jornada(jornada["id"])
                     for c in canchas:
                         ctop1, ctop2 = st.columns([2, 1])
-                        ctop1.markdown(f"**Cancha {c['numero_cancha']}**")
+                        cancha_fisica_label = f" · {c.get('cancha_fisica', '').strip()}" if c.get("cancha_fisica") else ""
+                        ctop1.markdown(f"**Cancha {c['numero_cancha']}{cancha_fisica_label}**")
                         nuevo_horario = ctop2.text_input(
                             "Horario",
                             value=c["horario"] or "",
@@ -927,9 +931,32 @@ elif pagina == "📅  Jornadas":
                             placeholder="Horario",
                         )
                         if nuevo_horario != (c["horario"] or ""):
-                            actualizar_horario_cancha(c["id"], nuevo_horario.strip())
-                            st.success(f"Horario actualizado en Cancha {c['numero_cancha']}")
-                            st.rerun()
+                            try:
+                                actualizar_horario_cancha(c["id"], nuevo_horario.strip())
+                                st.success(f"Horario actualizado en Cancha {c['numero_cancha']}")
+                                st.rerun()
+                            except ValueError as e:
+                                st.error(str(e))
+
+                        if canchas_fisicas_cfg:
+                            opciones_fisicas = ["(Sin asignar)"] + canchas_fisicas_cfg
+                            actual_fisica = (c.get("cancha_fisica") or "").strip()
+                            idx_fisica = opciones_fisicas.index(actual_fisica) if actual_fisica in opciones_fisicas else 0
+                            nueva_fisica = ctop2.selectbox(
+                                "Cancha física",
+                                options=opciones_fisicas,
+                                index=idx_fisica,
+                                key=f"edit_fisica_{c['id']}",
+                                label_visibility="collapsed",
+                            )
+                            nueva_fisica_val = "" if nueva_fisica == "(Sin asignar)" else nueva_fisica
+                            if nueva_fisica_val != actual_fisica:
+                                try:
+                                    actualizar_cancha_fisica_cancha_jornada(c["id"], nueva_fisica_val)
+                                    st.success(f"Cancha física actualizada en Cancha {c['numero_cancha']}")
+                                    st.rerun()
+                                except ValueError as e:
+                                    st.error(str(e))
 
                         nombres_c = [j["nombre"] for j in sorted(c["jugadores"], key=lambda x: x["posicion"])]
                         if c["resultado"]:
@@ -1528,11 +1555,11 @@ elif pagina == "📺  Pantalla TV":
     qp_auto = str(st.query_params.get("auto", "0" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
     qp_hide = str(st.query_params.get("hide", "1" if _tv_short_jid else "")).strip().lower() in ("1", "true", "yes")
     try:
-        qp_interval = int(str(st.query_params.get("interval", "10")))
+        qp_interval = int(str(st.query_params.get("interval", "180")))
     except Exception:
-        qp_interval = 10
-    if qp_interval not in [5, 8, 10, 12, 15, 20]:
-        qp_interval = 10
+        qp_interval = 180
+    if qp_interval not in [5, 8, 10, 12, 15, 20, 30, 60, 120, 180]:
+        qp_interval = 180
 
     if str(st.query_params.get("view", "")).strip().lower() == "tv" or _tv_short_jid:
         st.session_state["tv_auto"] = qp_auto
@@ -1556,8 +1583,12 @@ elif pagina == "📺  Pantalla TV":
             st.rerun()
 
         auto_tv = cnav3.toggle("Auto carrusel", value=st.session_state.get("tv_auto", False), key="tv_auto")
-        idx_intervalo = [5, 8, 10, 12, 15, 20].index(st.session_state.get("tv_interval", 10))
-        intervalo = cnav4.selectbox("Intervalo (seg)", options=[5, 8, 10, 12, 15, 20], index=idx_intervalo, key="tv_interval")
+        _intervalos = [5, 8, 10, 12, 15, 20, 30, 60, 120, 180]
+        _intervalo_actual = st.session_state.get("tv_interval", 180)
+        if _intervalo_actual not in _intervalos:
+            _intervalo_actual = 180
+        idx_intervalo = _intervalos.index(_intervalo_actual)
+        intervalo = cnav4.selectbox("Intervalo (seg)", options=_intervalos, index=idx_intervalo, key="tv_interval")
         st.caption(f"Página {st.session_state['tv_page_idx'] + 1} de {total_paginas}")
 
         tv_full = st.toggle("Ocultar sidebar (vista operador)", value=st.session_state.get("tv_hide_sidebar", False), key="tv_hide_sidebar")
@@ -1670,7 +1701,11 @@ elif pagina == "📺  Pantalla TV":
                     )
                     _pts_map = {1: _pts_tuple[0], 2: _pts_tuple[1], 3: _pts_tuple[2], 4: _pts_tuple[3]}
                 with st.container(border=True):
-                    st.markdown(f"### Cancha {c['numero_cancha']}")
+                    _cf = (c.get("cancha_fisica") or "").strip()
+                    _titulo_cancha = f"Cancha {c['numero_cancha']}"
+                    if _cf:
+                        _titulo_cancha += f" · {_cf}"
+                    st.markdown(f"### {_titulo_cancha}")
                     st.caption(f"⏰ {c.get('horario') or '-'}")
 
                     for j in jugadores_orden:
@@ -1752,6 +1787,12 @@ elif pagina == "⚙️  Configuración":
             "Horarios (uno por línea)",
             value="\n".join(h["nombre"] for h in horarios_actuales),
             height=100,
+        )
+        canchas_fisicas_txt = st.text_area(
+            "Canchas físicas (una por línea)",
+            value=torneo.get("canchas_fisicas_txt", ""),
+            height=100,
+            help="Ejemplo: Central 1, Central 2, Pista 3...",
         )
 
         st.markdown("### Logos")
@@ -1842,6 +1883,7 @@ elif pagina == "⚙️  Configuración":
             actualizar_torneo(tid, nombre=nombre, temporada=temporada,
                               num_canchas=int(num_can), logo_path=logo_left_path,
                               logo_left_path=logo_left_path, logo_right_path=logo_right_path,
+                              canchas_fisicas_txt=canchas_fisicas_txt,
                               tv_header_logo_path=tv_header_logo_path,
                               **sponsor_updates)
             crear_horarios(tid, [h for h in horarios_txt.splitlines() if h.strip()])

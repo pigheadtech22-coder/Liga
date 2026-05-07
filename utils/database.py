@@ -40,6 +40,7 @@ def init_db():
             logo_left_path        TEXT DEFAULT '',
             logo_right_path       TEXT DEFAULT '',
             tv_header_logo_path   TEXT DEFAULT '',
+            canchas_fisicas_txt   TEXT DEFAULT '',
             creado_en   TEXT    DEFAULT (datetime('now'))
         );
 
@@ -71,7 +72,8 @@ def init_db():
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             jornada_id    INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
             numero_cancha INTEGER NOT NULL,
-            horario       TEXT    DEFAULT ''
+            horario       TEXT    DEFAULT '',
+            cancha_fisica TEXT    DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS asignaciones (
@@ -143,6 +145,14 @@ def init_db():
                 conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
         if "tv_header_logo_path" not in columnas_torneos:
             conn.execute("ALTER TABLE torneos ADD COLUMN tv_header_logo_path TEXT DEFAULT ''")
+        if "canchas_fisicas_txt" not in columnas_torneos:
+            conn.execute("ALTER TABLE torneos ADD COLUMN canchas_fisicas_txt TEXT DEFAULT ''")
+
+        columnas_canchas_jornada = {
+            row["name"] for row in conn.execute("PRAGMA table_info(canchas_jornada)").fetchall()
+        }
+        if "cancha_fisica" not in columnas_canchas_jornada:
+            conn.execute("ALTER TABLE canchas_jornada ADD COLUMN cancha_fisica TEXT DEFAULT ''")
         conn.execute(
             """UPDATE torneos
                SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
@@ -321,9 +331,65 @@ def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
 def actualizar_horario_cancha(cancha_jornada_id: int, horario: str):
     """Actualiza el horario de una cancha puntual dentro de una jornada."""
     with get_conn() as conn:
+        row = conn.execute(
+            "SELECT jornada_id, cancha_fisica FROM canchas_jornada WHERE id=?",
+            (cancha_jornada_id,),
+        ).fetchone()
+        if not row:
+            return
+        jornada_id = int(row["jornada_id"])
+        cancha_fisica = (row["cancha_fisica"] or "").strip()
+        horario_nuevo = (horario or "").strip()
+
+        if cancha_fisica:
+            existente = conn.execute(
+                """SELECT id FROM canchas_jornada
+                   WHERE jornada_id=?
+                     AND id<>?
+                     AND TRIM(COALESCE(horario, '')) = ?
+                     AND LOWER(TRIM(COALESCE(cancha_fisica, ''))) = LOWER(?)
+                   LIMIT 1""",
+                (jornada_id, cancha_jornada_id, horario_nuevo, cancha_fisica),
+            ).fetchone()
+            if existente:
+                raise ValueError("Ese horario ya tiene asignada la misma cancha física.")
+
         conn.execute(
             "UPDATE canchas_jornada SET horario=? WHERE id=?",
-            (horario, cancha_jornada_id),
+            (horario_nuevo, cancha_jornada_id),
+        )
+
+
+def actualizar_cancha_fisica_cancha_jornada(cancha_jornada_id: int, cancha_fisica: str):
+    """Actualiza la cancha física validando que no se repita en el mismo horario/jornada."""
+    nueva = (cancha_fisica or "").strip()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT jornada_id, horario FROM canchas_jornada WHERE id=?",
+            (cancha_jornada_id,),
+        ).fetchone()
+        if not row:
+            return
+
+        jornada_id = int(row["jornada_id"])
+        horario = (row["horario"] or "").strip()
+
+        if nueva:
+            existente = conn.execute(
+                """SELECT id FROM canchas_jornada
+                   WHERE jornada_id=?
+                     AND id<>?
+                     AND TRIM(COALESCE(horario, '')) = ?
+                     AND LOWER(TRIM(COALESCE(cancha_fisica, ''))) = LOWER(?)
+                   LIMIT 1""",
+                (jornada_id, cancha_jornada_id, horario, nueva),
+            ).fetchone()
+            if existente:
+                raise ValueError("Esa cancha física ya está asignada en el mismo horario.")
+
+        conn.execute(
+            "UPDATE canchas_jornada SET cancha_fisica=? WHERE id=?",
+            (nueva, cancha_jornada_id),
         )
 
 
@@ -355,6 +421,7 @@ def obtener_canchas_jornada(jornada_id: int) -> list[dict]:
                     "id": cid,
                     "numero_cancha": c["numero_cancha"],
                     "horario": c["horario"],
+                    "cancha_fisica": c["cancha_fisica"],
                     "jugadores": [dict(a) for a in asigs],
                     "resultado": dict(res) if res else None,
                 }
