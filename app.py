@@ -1494,6 +1494,7 @@ elif pagina == "📺  Pantalla TV":
 
     canchas_por_pagina = 10
     paginas = [canchas[i:i + canchas_por_pagina] for i in range(0, len(canchas), canchas_por_pagina)]
+    paginas.append(["__ranking__"])  # diapositiva de ranking al final del carrusel
     total_paginas = max(1, len(paginas))
     st.session_state["tv_page_idx"] = min(st.session_state.get("tv_page_idx", 0), total_paginas - 1)
 
@@ -1621,35 +1622,84 @@ elif pagina == "📺  Pantalla TV":
         )
 
     pagina_canchas = paginas[st.session_state["tv_page_idx"]] if paginas else []
-    for fila in range(2):
-        cols = st.columns(5)
-        for col in range(5):
-            idx = fila * 5 + col
-            with cols[col]:
-                if idx >= len(pagina_canchas):
-                    st.write("")
-                    continue
-                c = pagina_canchas[idx]
-                jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
-                with st.container(border=True):
-                    st.markdown(f"### Cancha {c['numero_cancha']}")
-                    st.caption(f"⏰ {c.get('horario') or '-'}")
 
-                    for j in jugadores_orden:
-                        cf, cn = st.columns([1, 4])
-                        with cf:
-                            mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=63)
-                        with cn:
-                            st.markdown(f"<span style='font-size:1rem'>**P{j.get('posicion', '-')} · {j.get('nombre', '-')}**</span>", unsafe_allow_html=True)
-                        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-                    if c.get("resultado"):
-                        r = c["resultado"]
-                        st.caption(
-                            f"S1 {r['set1_a']}-{r['set1_b']} | "
-                            f"S2 {r['set2_a']}-{r['set2_b']} | "
-                            f"S3 {r['set3_a']}-{r['set3_b']}"
+    # ── Diapositiva de ranking general ─────────────────────────────
+    if pagina_canchas == ["__ranking__"]:
+        _rk = calcular_ranking(torneo["id"])
+        st.markdown(
+            "<h2 style='margin:0 0 0.4rem 0;text-align:center;'>🏆 Ranking General</h2>",
+            unsafe_allow_html=True,
+        )
+        # Dividir en hasta 3 columnas para aprovechar el ancho de la TV
+        _rk_cols_n = 3 if len(_rk) > 16 else (2 if len(_rk) > 8 else 1)
+        _rk_per_col = -(-len(_rk) // _rk_cols_n)  # ceil division
+        _rk_cols = st.columns(_rk_cols_n)
+        for _ci, _rk_col in enumerate(_rk_cols):
+            _slice = _rk[_ci * _rk_per_col: (_ci + 1) * _rk_per_col]
+            with _rk_col:
+                for _r in _slice:
+                    _medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(_r["posicion"], f"#{_r['posicion']}")
+                    _rk_cf, _rk_cn = st.columns([1, 4])
+                    with _rk_cf:
+                        mostrar_foto(_r.get("foto_sin_fondo", ""), _r.get("foto_original", ""), size=54)
+                    with _rk_cn:
+                        st.markdown(
+                            f"<div style='font-size:0.95rem;line-height:1.3'>"
+                            f"<b>{_medal} {_r['nombre']}</b><br>"
+                            f"<span style='color:#e10600;font-size:1.1rem;font-weight:700'>{_r['total_pts']} pts</span>"
+                            f"</div>",
+                            unsafe_allow_html=True,
                         )
+                    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    else:
+        # ── Diapositivas de canchas ─────────────────────────────────
+        for fila in range(2):
+            cols = st.columns(5)
+            for col in range(5):
+                idx = fila * 5 + col
+                with cols[col]:
+                    if idx >= len(pagina_canchas):
+                        st.write("")
+                        continue
+                    c = pagina_canchas[idx]
+                    jugadores_orden = sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99))
+                    # Calcular puntos por posición si hay resultado
+                    _pts_map: dict[int, int] = {}
+                    if c.get("resultado"):
+                        _r = c["resultado"]
+                        _pts_tuple = calcular_puntos_cancha(
+                            _r["set1_a"], _r["set1_b"],
+                            _r["set2_a"], _r["set2_b"],
+                            _r["set3_a"], _r["set3_b"],
+                        )
+                        _pts_map = {1: _pts_tuple[0], 2: _pts_tuple[1], 3: _pts_tuple[2], 4: _pts_tuple[3]}
+                    with st.container(border=True):
+                        st.markdown(f"### Cancha {c['numero_cancha']}")
+                        st.caption(f"⏰ {c.get('horario') or '-'}")
+
+                        for j in jugadores_orden:
+                            cf, cn = st.columns([1, 4])
+                            with cf:
+                                mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=63)
+                            with cn:
+                                _pos = j.get("posicion", 0)
+                                _pts_badge = (
+                                    f" <span style='color:#e10600;font-weight:700'>{_pts_map[_pos]:+d}pts</span>"
+                                    if _pos in _pts_map else ""
+                                )
+                                st.markdown(
+                                    f"<span style='font-size:1rem'>**P{_pos} · {j.get('nombre', '-')}**{_pts_badge}</span>",
+                                    unsafe_allow_html=True,
+                                )
+                            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+                        if c.get("resultado"):
+                            _r = c["resultado"]
+                            st.caption(
+                                f"S1 {_r['set1_a']}-{_r['set1_b']} | "
+                                f"S2 {_r['set2_a']}-{_r['set2_b']} | "
+                                f"S3 {_r['set3_a']}-{_r['set3_b']}"
+                            )
 
 
 
