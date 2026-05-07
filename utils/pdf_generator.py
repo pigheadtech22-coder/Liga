@@ -87,11 +87,11 @@ class LigaPDF(FPDF):
 
         # ── Logo Pighead blanco fijo (siempre en la derecha) ──
         if self.logo_right_path and Path(self.logo_right_path).exists():
-            self.image(str(self.logo_right_path), x=175, y=8, h=15)
+            self.image(str(self.logo_right_path), x=165, y=9, h=12)
         else:
             ph_white = BASE_DIR / "assets" / "pighead_white.png"
             if ph_white.exists():
-                self.image(str(ph_white), x=175, y=8, h=15)
+                self.image(str(ph_white), x=165, y=9, h=12)
 
         # Nombre de la liga
         self.set_font("Helvetica", "B", 18)
