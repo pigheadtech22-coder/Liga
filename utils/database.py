@@ -96,6 +96,14 @@ def init_db():
             penalizacion INTEGER NOT NULL DEFAULT -10,
             UNIQUE (jornada_id, jugador_id)
         );
+
+        CREATE TABLE IF NOT EXISTS asistencia_jornada (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            jornada_id INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+            jugador_id INTEGER NOT NULL REFERENCES jugadores(id),
+            llego      INTEGER NOT NULL DEFAULT 1,
+            UNIQUE (jornada_id, jugador_id)
+        );
         """)
 
         columnas_torneos = {
@@ -397,6 +405,29 @@ def obtener_ausencias_jornada(jornada_id: int) -> dict[int, int]:
             (jornada_id,),
         ).fetchall()
         return {int(r["jugador_id"]): int(r["penalizacion"]) for r in rows}
+
+
+def guardar_asistencia_jornada(jornada_id: int, jugador_ids_llegaron: set[int] | list[int]):
+    """Reemplaza la asistencia de una jornada con los IDs de jugadores que llegaron."""
+    ids = {int(jid) for jid in jugador_ids_llegaron}
+    with get_conn() as conn:
+        conn.execute("DELETE FROM asistencia_jornada WHERE jornada_id=?", (jornada_id,))
+        for jugador_id in ids:
+            conn.execute(
+                """INSERT INTO asistencia_jornada (jornada_id, jugador_id, llego)
+                   VALUES (?,?,1)""",
+                (jornada_id, jugador_id),
+            )
+
+
+def obtener_asistencia_jornada(jornada_id: int) -> set[int]:
+    """Devuelve el conjunto de jugador_id marcados como presentes para una jornada."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT jugador_id FROM asistencia_jornada WHERE jornada_id=? AND llego=1",
+            (jornada_id,),
+        ).fetchall()
+        return {int(r["jugador_id"]) for r in rows}
 
 
 # ──────────────────────── RANKING ───────────────────────────────

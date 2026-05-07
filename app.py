@@ -232,6 +232,7 @@ from utils.database import (
     actualizar_horario_cancha,
     obtener_canchas_jornada,
     guardar_resultado, guardar_ausencias_jornada, obtener_ausencias_jornada,
+    guardar_asistencia_jornada, obtener_asistencia_jornada,
     calcular_ranking,
 )
 from utils.liga_engine import (
@@ -914,6 +915,7 @@ elif pagina == "📅  Jornadas":
                     expanded=not jornada["completada"],
                 ):
                     canchas = obtener_canchas_jornada(jornada["id"])
+                    asistencia_actual = obtener_asistencia_jornada(jornada["id"])
                     for c in canchas:
                         ctop1, ctop2 = st.columns([2, 1])
                         ctop1.markdown(f"**Cancha {c['numero_cancha']}**")
@@ -948,6 +950,42 @@ elif pagina == "📅  Jornadas":
                             )
                         else:
                             st.caption(f"C{c['numero_cancha']}: sin resultado cargado aún.")
+
+                    st.markdown("#### ✅ Asistencia por horario")
+                    grupos_horario: dict[str, list[dict]] = {}
+                    for c in canchas:
+                        _horario = (c.get("horario") or "Sin horario").strip() or "Sin horario"
+                        grupos_horario.setdefault(_horario, [])
+                        for _j in sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99)):
+                            grupos_horario[_horario].append(
+                                {
+                                    "jugador_id": int(_j.get("jugador_id", 0) or 0),
+                                    "nombre": _j.get("nombre", "-"),
+                                    "cancha": int(c.get("numero_cancha", 0) or 0),
+                                    "posicion": int(_j.get("posicion", 0) or 0),
+                                }
+                            )
+
+                    llegados_sel: set[int] = set()
+                    for _horario, _lista in grupos_horario.items():
+                        st.markdown(f"**🕒 {_horario}**")
+                        cols_asis = st.columns(2)
+                        for _idx, _p in enumerate(_lista):
+                            _col = cols_asis[_idx % 2]
+                            _jid = _p["jugador_id"]
+                            _label = f"C{_p['cancha']} · P{_p['posicion']} · {_p['nombre']}"
+                            _checked = _col.checkbox(
+                                _label,
+                                value=(_jid in asistencia_actual),
+                                key=f"asis_j{jornada['id']}_u{_jid}",
+                            )
+                            if _checked and _jid:
+                                llegados_sel.add(_jid)
+
+                    if st.button("💾 Guardar asistencia", key=f"save_asis_{jornada['id']}", use_container_width=True):
+                        guardar_asistencia_jornada(jornada["id"], llegados_sel)
+                        st.success("Asistencia guardada.")
+                        st.rerun()
 
                     _, col_del_jornada = st.columns([4, 1])
                     if col_del_jornada.button("🗑️ Eliminar jornada", key=f"del_j_{jornada['id']}", use_container_width=True):
@@ -1443,6 +1481,7 @@ elif pagina == "📺  Pantalla TV":
     if not canchas:
         st.info("La jornada no tiene canchas cargadas.")
         st.stop()
+    asistencia_llegaron = obtener_asistencia_jornada(jornada_sel["id"])
 
     if st.session_state.get("tv_last_jornada_id") != jornada_sel["id"]:
         st.session_state["tv_last_jornada_id"] = jornada_sel["id"]
@@ -1640,12 +1679,16 @@ elif pagina == "📺  Pantalla TV":
                             mostrar_foto(j.get("foto_sin_fondo", ""), j.get("foto_original", ""), size=63)
                         with cn:
                             _pos = j.get("posicion", 0)
+                            _jid = int(j.get("jugador_id", 0) or 0)
+                            _llego = _jid in asistencia_llegaron
+                            _name_color = "#14833b" if _llego else "inherit"
+                            _llego_badge = " ✅" if _llego else ""
                             _pts_badge = (
                                 f" <span style='color:#e10600;font-weight:700'>{_pts_map[_pos]:+d}pts</span>"
                                 if _pos in _pts_map else ""
                             )
                             st.markdown(
-                                f"<span style='font-size:1rem'>**P{_pos} · {j.get('nombre', '-')}**{_pts_badge}</span>",
+                                f"<span style='font-size:1rem;color:{_name_color}'>**P{_pos} · {j.get('nombre', '-')}**{_llego_badge}{_pts_badge}</span>",
                                 unsafe_allow_html=True,
                             )
                         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
