@@ -1379,19 +1379,11 @@ elif pagina == "📺  Pantalla TV":
                 padding:0 !important;
             }
             div[data-testid="stHorizontalBlock"] {
-                flex:1;
-                min-height:0;
-                align-items:stretch;
                 gap:0.3rem;
                 margin:0 !important;
                 padding:0 !important;
             }
-            div[data-testid="stColumn"] > div:first-child {
-                height:100%;
-                overflow:hidden;
-            }
             div[data-testid="stVerticalBlockBorderWrapper"] {
-                height:100% !important;
                 overflow:hidden;
                 border:2px solid rgba(18, 18, 18, 0.95) !important;
                 border-top:4px solid #e10600 !important;
@@ -1408,10 +1400,6 @@ elif pagina == "📺  Pantalla TV":
                 box-shadow:
                     0 0 0 1px rgba(255, 255, 255, 0.75) inset,
                     0 4px 10px rgba(0, 0, 0, 0.22) !important;
-            }
-            div[data-testid="stVerticalBlock"] {
-                height:100%;
-                overflow:hidden;
             }
             /* reducir tamaño de fuente en tarjetas */
             div[data-testid="stVerticalBlockBorderWrapper"] h3 {font-size:1.05rem !important; margin:0 !important;}
