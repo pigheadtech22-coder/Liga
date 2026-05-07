@@ -254,7 +254,7 @@ def generar_pdf_jornada(numero_jornada: int, canchas: list, output_path, torneo:
 
             pdf.fila_tabla(
                 cols=[medallas[i] if i < 4 else f"{i+1}o",
-                      _nombre_apellido(j["nombre"]),
+                      j["nombre"],
                       _pts_str(pts),
                       f"#{i+1} cancha"],
                 widths=widths_j,
@@ -364,7 +364,7 @@ def generar_pdf_ranking(
             pen_str = _pts_str(total_pen) if total_pen else "0"
 
             pdf.fila_tabla(
-                cols=[pos_txt, _nombre_apellido(r["nombre"])] + celdas_j + [pen_str, _pts_str(total)],
+                cols=[pos_txt, r["nombre"]] + celdas_j + [pen_str, _pts_str(total)],
                 widths=widths_r,
                 aligns=aligns_r,
                 fila_num=pos,
@@ -376,7 +376,7 @@ def generar_pdf_ranking(
             total_juego = r.get("total_juego", total - total_pen)
             pen_str = _pts_str(total_pen) if total_pen else "0"
             pdf.fila_tabla(
-                cols=[pos_txt, _nombre_apellido(r["nombre"]), str(pj), _pts_str(total_juego), pen_str, _pts_str(total)],
+                cols=[pos_txt, r["nombre"], str(pj), _pts_str(total_juego), pen_str, _pts_str(total)],
                 widths=widths_r,
                 aligns=aligns_r,
                 fila_num=pos,
