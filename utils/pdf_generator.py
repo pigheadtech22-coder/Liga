@@ -27,11 +27,6 @@ def _nombre_apellido(nombre: str) -> str:
     return f"{partes[0]} {partes[-1][0]}."
 
 
-def _primer_nombre(nombre: str) -> str:
-    """Extrae el primer nombre de 'Juan García' -> 'Juan'."""
-    return nombre.strip().split()[0] if nombre.strip() else nombre
-
-
 # Colores corporativos
 AZUL       = (30,  80,  160)
 AZUL_CLARO = (220, 230, 245)
@@ -268,7 +263,7 @@ def generar_pdf_jornada(numero_jornada: int, canchas: list, output_path, torneo:
         sets = cancha.get("sets", [])
         if any(s[0] or s[1] for s in sets):
             jugadores = cancha["jugadores"]
-            p = [j["nombre"].split()[0] for j in jugadores]  # primer nombre
+            p = [_nombre_apellido(j["nombre"]) for j in jugadores]  # nombre + inicial apellido
 
             pdf.set_font("Helvetica", "I", 8)
             pdf.set_text_color(*GRIS)
@@ -455,19 +450,19 @@ def generar_pdf_planilla_jornada(
         pdf.ln(6)
 
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 7, f"Set 1 ({_primer_nombre(p[0])}+{_primer_nombre(p[1])})  ____  -  ____  ({_primer_nombre(p[2])}+{_primer_nombre(p[3])})")
+        pdf.cell(0, 7, f"Set 1 ({_nombre_apellido(p[0])}+{_nombre_apellido(p[1])})  ____  -  ____  ({_nombre_apellido(p[2])}+{_nombre_apellido(p[3])})")
         pdf.ln(7)
-        pdf.cell(0, 7, f"Set 2 ({_primer_nombre(p[0])}+{_primer_nombre(p[2])})  ____  -  ____  ({_primer_nombre(p[1])}+{_primer_nombre(p[3])})")
+        pdf.cell(0, 7, f"Set 2 ({_nombre_apellido(p[0])}+{_nombre_apellido(p[2])})  ____  -  ____  ({_nombre_apellido(p[1])}+{_nombre_apellido(p[3])})")
         pdf.ln(7)
-        pdf.cell(0, 7, f"Set 3 ({_primer_nombre(p[0])}+{_primer_nombre(p[3])})  ____  -  ____  ({_primer_nombre(p[1])}+{_primer_nombre(p[2])})")
+        pdf.cell(0, 7, f"Set 3 ({_nombre_apellido(p[0])}+{_nombre_apellido(p[3])})  ____  -  ____  ({_nombre_apellido(p[1])}+{_nombre_apellido(p[2])})")
         pdf.ln(8)
 
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(95, 7, f"Firma J1 ({_primer_nombre(p[0])}): _____________________")
-        pdf.cell(95, 7, f"Firma J2 ({_primer_nombre(p[1])}): _____________________")
+        pdf.cell(95, 7, f"Firma J1 ({_nombre_apellido(p[0])}): _____________________")
+        pdf.cell(95, 7, f"Firma J2 ({_nombre_apellido(p[1])}): _____________________")
         pdf.ln(7)
-        pdf.cell(95, 7, f"Firma J3 ({_primer_nombre(p[2])}): _____________________")
-        pdf.cell(95, 7, f"Firma J4 ({_primer_nombre(p[3])}): _____________________")
+        pdf.cell(95, 7, f"Firma J3 ({_nombre_apellido(p[2])}): _____________________")
+        pdf.cell(95, 7, f"Firma J4 ({_nombre_apellido(p[3])}): _____________________")
         pdf.ln(6)
 
         sponsor_paths = [
