@@ -26,8 +26,14 @@ if USE_POSTGRES:
 
 def _pg_url() -> str:
     if DATABASE_URL.startswith("postgres://"):
-        return "postgresql://" + DATABASE_URL[len("postgres://"):]
-    return DATABASE_URL
+        url = "postgresql://" + DATABASE_URL[len("postgres://"):]
+    else:
+        url = DATABASE_URL
+    # Supabase / Streamlit Cloud require SSL
+    if "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = url + sep + "sslmode=require"
+    return url
 
 
 def _to_driver_sql(sql: str) -> str:
