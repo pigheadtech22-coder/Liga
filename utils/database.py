@@ -3,20 +3,83 @@ database.py
 Capa de acceso a datos usando SQLite.
 Sin dependencias externas — migrar a PostgreSQL en el futuro cambiando solo este archivo.
 """
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH  = BASE_DIR / "data" / "liga.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise RuntimeError(
+            "DATABASE_URL esta configurada, pero falta psycopg. "
+            "Instala dependencias con: pip install -r requirements.txt"
+        ) from exc
+
+
+def _pg_url() -> str:
+    if DATABASE_URL.startswith("postgres://"):
+        return "postgresql://" + DATABASE_URL[len("postgres://"):]
+    return DATABASE_URL
+
+
+def _to_driver_sql(sql: str) -> str:
+    if USE_POSTGRES:
+        return sql.replace("?", "%s")
+    return sql
+
+
+class _ConnAdapter:
+    def __init__(self, conn, use_postgres: bool):
+        self._conn = conn
+        self._use_postgres = use_postgres
+
+    def execute(self, sql: str, params=()):
+        return self._conn.execute(_to_driver_sql(sql), params)
+
+    def executescript(self, script: str):
+        if not self._use_postgres:
+            return self._conn.executescript(script)
+        statements = [s.strip() for s in script.split(";") if s.strip()]
+        with self._conn.cursor() as cur:
+            for stmt in statements:
+                cur.execute(stmt)
+
+    def __getattr__(self, item):
+        return getattr(self._conn, item)
+
+
+def _table_columns(conn: _ConnAdapter, table_name: str) -> set[str]:
+    if USE_POSTGRES:
+        rows = conn.execute(
+            """SELECT column_name
+               FROM information_schema.columns
+               WHERE table_schema='public' AND table_name=%s""",
+            (table_name,),
+        ).fetchall()
+        return {r["column_name"] for r in rows}
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {r["name"] for r in rows}
 
 
 @contextmanager
 def get_conn():
-    DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    if USE_POSTGRES:
+        raw_conn = psycopg.connect(_pg_url(), row_factory=dict_row)
+        conn = _ConnAdapter(raw_conn, use_postgres=True)
+    else:
+        DB_PATH.parent.mkdir(exist_ok=True)
+        raw_conn = sqlite3.connect(DB_PATH)
+        raw_conn.row_factory = sqlite3.Row
+        raw_conn.execute("PRAGMA foreign_keys = ON")
+        conn = _ConnAdapter(raw_conn, use_postgres=False)
     try:
         yield conn
         conn.commit()
@@ -30,6 +93,109 @@ def get_conn():
 def init_db():
     """Crea las tablas si no existen."""
     with get_conn() as conn:
+        if USE_POSTGRES:
+            conn.executescript("""
+            CREATE TABLE IF NOT EXISTS torneos (
+                id                  SERIAL PRIMARY KEY,
+                nombre              TEXT    NOT NULL,
+                temporada           TEXT    DEFAULT '',
+                num_canchas         INTEGER NOT NULL DEFAULT 5,
+                logo_path           TEXT    DEFAULT '',
+                logo_left_path      TEXT    DEFAULT '',
+                logo_right_path     TEXT    DEFAULT '',
+                tv_header_logo_path TEXT    DEFAULT '',
+                canchas_fisicas_txt TEXT    DEFAULT '',
+                creado_en           TIMESTAMP DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS horarios (
+                id        SERIAL PRIMARY KEY,
+                torneo_id INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+                nombre    TEXT    NOT NULL,
+                orden     INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS jugadores (
+                id             SERIAL PRIMARY KEY,
+                torneo_id      INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+                nombre         TEXT    NOT NULL,
+                foto_original  TEXT    DEFAULT '',
+                foto_sin_fondo TEXT    DEFAULT '',
+                activo         INTEGER DEFAULT 1
+            );
+
+            CREATE TABLE IF NOT EXISTS jornadas (
+                id         SERIAL PRIMARY KEY,
+                torneo_id  INTEGER NOT NULL REFERENCES torneos(id) ON DELETE CASCADE,
+                numero     INTEGER NOT NULL,
+                fecha      TEXT    DEFAULT '',
+                completada INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS canchas_jornada (
+                id            SERIAL PRIMARY KEY,
+                jornada_id    INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+                numero_cancha INTEGER NOT NULL,
+                horario       TEXT    DEFAULT '',
+                cancha_fisica TEXT    DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS asignaciones (
+                id                SERIAL PRIMARY KEY,
+                cancha_jornada_id INTEGER NOT NULL REFERENCES canchas_jornada(id) ON DELETE CASCADE,
+                jugador_id        INTEGER NOT NULL REFERENCES jugadores(id),
+                posicion          INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS resultados (
+                id                SERIAL PRIMARY KEY,
+                cancha_jornada_id INTEGER NOT NULL UNIQUE REFERENCES canchas_jornada(id) ON DELETE CASCADE,
+                set1_a INTEGER DEFAULT 0, set1_b INTEGER DEFAULT 0,
+                set2_a INTEGER DEFAULT 0, set2_b INTEGER DEFAULT 0,
+                set3_a INTEGER DEFAULT 0, set3_b INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS ausencias_jornada (
+                id           SERIAL PRIMARY KEY,
+                jornada_id   INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+                jugador_id   INTEGER NOT NULL REFERENCES jugadores(id),
+                penalizacion INTEGER NOT NULL DEFAULT -10,
+                UNIQUE (jornada_id, jugador_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS asistencia_jornada (
+                id         SERIAL PRIMARY KEY,
+                jornada_id INTEGER NOT NULL REFERENCES jornadas(id) ON DELETE CASCADE,
+                jugador_id INTEGER NOT NULL REFERENCES jugadores(id),
+                llego      INTEGER NOT NULL DEFAULT 1,
+                UNIQUE (jornada_id, jugador_id)
+            );
+            """)
+
+            columnas_torneos = _table_columns(conn, "torneos")
+            if "logo_left_path" not in columnas_torneos:
+                conn.execute("ALTER TABLE torneos ADD COLUMN logo_left_path TEXT DEFAULT ''")
+            if "logo_right_path" not in columnas_torneos:
+                conn.execute("ALTER TABLE torneos ADD COLUMN logo_right_path TEXT DEFAULT ''")
+            for idx in range(1, 9):
+                col = f"sponsor_logo_{idx}_path"
+                if col not in columnas_torneos:
+                    conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
+            if "tv_header_logo_path" not in columnas_torneos:
+                conn.execute("ALTER TABLE torneos ADD COLUMN tv_header_logo_path TEXT DEFAULT ''")
+            if "canchas_fisicas_txt" not in columnas_torneos:
+                conn.execute("ALTER TABLE torneos ADD COLUMN canchas_fisicas_txt TEXT DEFAULT ''")
+
+            columnas_canchas_jornada = _table_columns(conn, "canchas_jornada")
+            if "cancha_fisica" not in columnas_canchas_jornada:
+                conn.execute("ALTER TABLE canchas_jornada ADD COLUMN cancha_fisica TEXT DEFAULT ''")
+            conn.execute(
+                """UPDATE torneos
+                   SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
+                   WHERE COALESCE(logo_left_path, '') = '' AND COALESCE(logo_path, '') != ''"""
+            )
+            return
+
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS torneos (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,9 +274,7 @@ def init_db():
         );
         """)
 
-        columnas_torneos = {
-            row["name"] for row in conn.execute("PRAGMA table_info(torneos)").fetchall()
-        }
+        columnas_torneos = _table_columns(conn, "torneos")
 
         # Migra instalaciones antiguas donde jornadas.torneo_id referenciaba mal a jornadas(id).
         fk_jornadas = conn.execute("PRAGMA foreign_key_list(jornadas)").fetchall()
@@ -148,9 +312,7 @@ def init_db():
         if "canchas_fisicas_txt" not in columnas_torneos:
             conn.execute("ALTER TABLE torneos ADD COLUMN canchas_fisicas_txt TEXT DEFAULT ''")
 
-        columnas_canchas_jornada = {
-            row["name"] for row in conn.execute("PRAGMA table_info(canchas_jornada)").fetchall()
-        }
+        columnas_canchas_jornada = _table_columns(conn, "canchas_jornada")
         if "cancha_fisica" not in columnas_canchas_jornada:
             conn.execute("ALTER TABLE canchas_jornada ADD COLUMN cancha_fisica TEXT DEFAULT ''")
         conn.execute(
@@ -171,6 +333,22 @@ def crear_torneo(
     logo_right_path: str = "",
 ) -> int:
     with get_conn() as conn:
+        if USE_POSTGRES:
+            row = conn.execute(
+                """INSERT INTO torneos
+                   (nombre, temporada, num_canchas, logo_path, logo_left_path, logo_right_path)
+                   VALUES (?,?,?,?,?,?)
+                   RETURNING id""",
+                (
+                    nombre,
+                    temporada,
+                    num_canchas,
+                    logo_path,
+                    logo_left_path or logo_path,
+                    logo_right_path,
+                ),
+            ).fetchone()
+            return int(row["id"])
         cur = conn.execute(
             """INSERT INTO torneos
                (nombre, temporada, num_canchas, logo_path, logo_left_path, logo_right_path)
@@ -204,7 +382,7 @@ def obtener_torneo(torneo_id: int) -> dict | None:
 def actualizar_torneo(torneo_id: int, **kwargs):
     with get_conn() as conn:
         # Filter kwargs to only include columns that actually exist in the table
-        columnas = {row["name"] for row in conn.execute("PRAGMA table_info(torneos)").fetchall()}
+        columnas = _table_columns(conn, "torneos")
         filtrado = {k: v for k, v in kwargs.items() if k in columnas}
         if not filtrado:
             return
@@ -245,6 +423,12 @@ def listar_horarios(torneo_id: int) -> list[dict]:
 
 def crear_jugador(torneo_id: int, nombre: str) -> int:
     with get_conn() as conn:
+        if USE_POSTGRES:
+            row = conn.execute(
+                "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?) RETURNING id",
+                (torneo_id, nombre.strip()),
+            ).fetchone()
+            return int(row["id"])
         cur = conn.execute(
             "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?)",
             (torneo_id, nombre.strip()),
@@ -284,6 +468,12 @@ def eliminar_jugador(jugador_id: int):
 
 def crear_jornada(torneo_id: int, numero: int, fecha: str = "") -> int:
     with get_conn() as conn:
+        if USE_POSTGRES:
+            row = conn.execute(
+                "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?) RETURNING id",
+                (torneo_id, numero, fecha),
+            ).fetchone()
+            return int(row["id"])
         cur = conn.execute(
             "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?)",
             (torneo_id, numero, fecha),
@@ -313,6 +503,12 @@ def eliminar_jornada(jornada_id: int):
 
 def crear_cancha_jornada(jornada_id: int, numero_cancha: int, horario: str = "") -> int:
     with get_conn() as conn:
+        if USE_POSTGRES:
+            row = conn.execute(
+                "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?) RETURNING id",
+                (jornada_id, numero_cancha, horario),
+            ).fetchone()
+            return int(row["id"])
         cur = conn.execute(
             "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?)",
             (jornada_id, numero_cancha, horario),
