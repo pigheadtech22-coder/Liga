@@ -1094,7 +1094,19 @@ elif pagina == "📅  Jornadas":
                         st.success("Asistencia guardada.")
                         st.rerun()
 
-                    _, col_del_jornada = st.columns([4, 1])
+                    col_mark_jornada, col_del_jornada = st.columns([3, 1])
+                    if not jornada["completada"]:
+                        if col_mark_jornada.button(
+                            "✅ Completar jornada",
+                            key=f"done_j_{jornada['id']}",
+                            use_container_width=True,
+                        ):
+                            marcar_jornada_completada(jornada["id"])
+                            st.success("Jornada marcada como completada.")
+                            st.rerun()
+                    else:
+                        col_mark_jornada.caption("Jornada ya completada")
+
                     if col_del_jornada.button("🗑️ Eliminar jornada", key=f"del_j_{jornada['id']}", use_container_width=True):
                         eliminar_jornada(jornada["id"])
                         st.rerun()
@@ -1276,15 +1288,14 @@ elif pagina == "📊  Ranking":
     st.divider()
 
     tid = torneo["id"]
-    ranking = calcular_ranking(tid)
+    ranking = calcular_ranking(tid, completada_only=False)
     if not ranking:
         st.info("Sin datos de ranking todavía.")
         st.stop()
 
     jornadas = listar_jornadas(tid)
-    completadas = [j for j in jornadas if j["completada"]]
-    ultima = completadas[-1]["numero"] if completadas else "—"
-    st.markdown(f"Clasificación hasta **Jornada {ultima}**")
+    ultima = max((j["numero"] for j in jornadas), default="—")
+    st.markdown(f"Clasificación en tiempo real hasta **Jornada {ultima}**")
 
     if len(ranking) >= 3:
         st.markdown("### Podio")
