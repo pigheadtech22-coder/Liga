@@ -77,16 +77,24 @@ def generar_canchas(
         Lista de canchas. Cada cancha es una lista de dicts de jugadores
         en posiciones 1-4 (posición = índice + 1).
     """
-    # Construir mapa de puntos por jugador
+    # Construir mapas por jugador
     pts_map: dict[int, int] = {}
+    pos_map: dict[int, int] = {}
     if ranking_previo:
         for r in ranking_previo:
             pts_map[r["id"]] = r.get("total_pts", 0)
+            pos_map[r["id"]] = r.get("posicion", 999999)
 
-    # Ordenar: más puntos → mejor cancha (cancha 1 = la "alta")
+    # Desempate:
+    # - Primera jornada / sin ranking previo: prioridad por orden de captura (id)
+    # - Jornadas siguientes: prioridad por posicion en ranking previo
     ordenados = sorted(
         jugadores_activos,
-        key=lambda j: (-pts_map.get(j["id"], 0), j["nombre"]),
+        key=lambda j: (
+            -pts_map.get(j["id"], 0),
+            pos_map.get(j["id"], 999999) if ranking_previo else int(j["id"]),
+            int(j["id"]),
+        ),
     )
 
     canchas: list[list[dict]] = []
@@ -152,6 +160,7 @@ def rank_cancha(puntos_lista: list[int]) -> list[int]:
 def generar_canchas_por_movimiento(
     canchas_previas: list[dict],
     jugadores_a_mover: int,
+    ranking_previo: list[dict] | None = None,
 ) -> list[list[dict]]:
     """
     Genera la siguiente jornada intercambiando jugadores entre canchas contiguas.
@@ -166,6 +175,10 @@ def generar_canchas_por_movimiento(
         raise ValueError("jugadores_a_mover debe ser 1 o 2")
 
     canchas_ordenadas = sorted(canchas_previas, key=lambda c: c["numero_cancha"])
+    pos_map = {
+        int(r["id"]): int(r.get("posicion", 999999))
+        for r in (ranking_previo or [])
+    }
     ranking_por_cancha: list[list[dict]] = []
 
     for cancha in canchas_ordenadas:
@@ -190,7 +203,13 @@ def generar_canchas_por_movimiento(
                 }
             )
 
-        jugadores_rank.sort(key=lambda x: (-x["puntos"], x["nombre"]))
+        jugadores_rank.sort(
+            key=lambda x: (
+                -x["puntos"],
+                pos_map.get(int(x["id"]), 999999),
+                int(x["id"]),
+            )
+        )
         ranking_por_cancha.append(jugadores_rank)
 
     siguiente: list[list[dict]] = []
@@ -218,7 +237,13 @@ def generar_canchas_por_movimiento(
         siguiente[i + 1].extend(bajan_desde_arriba)
 
     for cancha in siguiente:
-        cancha.sort(key=lambda x: (-x["puntos"], x["nombre"]))
+        cancha.sort(
+            key=lambda x: (
+                -x["puntos"],
+                pos_map.get(int(x["id"]), 999999),
+                int(x["id"]),
+            )
+        )
         if len(cancha) != 4:
             raise ValueError("La generacion por movimiento no produjo 4 jugadores por cancha")
 

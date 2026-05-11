@@ -840,7 +840,29 @@ def calcular_ranking(torneo_id: int, completada_only: bool = True) -> list[dict]
                 }
             )
 
-    ranking.sort(key=lambda r: (-r["total_pts"], r["nombre"]))
+    # Desempate de ranking:
+    # - Jornada 1: orden de captura (id)
+    # - Jornadas siguientes: posicion en ranking previo (equivale a acumulado hasta la jornada anterior)
+    nums_j = sorted(int(j["numero"]) for j in jornadas)
+    ultima_j = nums_j[-1] if nums_j else None
+
+    def _prev_total(r: dict) -> int:
+        if ultima_j is None:
+            return 0
+        prev_nums = [n for n in nums_j if n < ultima_j]
+        s = 0
+        for n in prev_nums:
+            s += int(r["pts_por_jornada"].get(n, 0))
+            s += int(r["pen_por_jornada"].get(n, 0))
+        return s
+
+    ranking.sort(
+        key=lambda r: (
+            -r["total_pts"],
+            -_prev_total(r),
+            int(r["id"]),
+        )
+    )
     for i, r in enumerate(ranking, 1):
         r["posicion"] = i
 

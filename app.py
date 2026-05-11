@@ -888,11 +888,15 @@ elif pagina == "📅  Jornadas":
                 st.caption("Las ausencias y penalizaciones se cargan luego en Resultados.")
                 jornada_base = max(jornadas, key=lambda j: j["numero"])
                 canchas_base = obtener_canchas_jornada(jornada_base["id"])
+                ranking_previo = calcular_ranking(tid)
                 try:
-                    canchas_gen = generar_canchas_por_movimiento(canchas_base, int(movimiento))
+                    canchas_gen = generar_canchas_por_movimiento(
+                        canchas_base,
+                        int(movimiento),
+                        ranking_previo=ranking_previo,
+                    )
                 except ValueError:
                     # Fallback para casos especiales (sin resultados completos, etc.).
-                    ranking_previo = calcular_ranking(tid)
                     canchas_gen = generar_canchas(jugadores_todos, num_canchas_cfg, ranking_previo)
                     st.warning(
                         "No se pudo aplicar sube/baja en todas las canchas (faltan resultados o hay canchas incompletas). "
