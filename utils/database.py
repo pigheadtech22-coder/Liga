@@ -530,6 +530,70 @@ def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
         )
 
 
+def guardar_asignaciones_jornada(jornada_id: int, nuevas_asignaciones: list[dict]):
+    """Reemplaza todas las asignaciones de una jornada.
+
+    nuevas_asignaciones: lista de dicts con claves
+      - cancha_jornada_id
+      - jugador_id
+      - posicion
+    """
+    with get_conn() as conn:
+        canchas = conn.execute(
+            "SELECT id FROM canchas_jornada WHERE jornada_id=?",
+            (jornada_id,),
+        ).fetchall()
+        cancha_ids = {int(c["id"]) for c in canchas}
+        if not cancha_ids:
+            raise ValueError("La jornada no tiene canchas para reordenar.")
+
+        actuales = conn.execute(
+            """SELECT a.jugador_id, a.cancha_jornada_id, a.posicion
+               FROM asignaciones a
+               JOIN canchas_jornada cj ON cj.id = a.cancha_jornada_id
+               WHERE cj.jornada_id=?""",
+            (jornada_id,),
+        ).fetchall()
+        if not actuales:
+            raise ValueError("La jornada no tiene jugadores asignados.")
+
+        ids_actuales = [int(r["jugador_id"]) for r in actuales]
+        ids_nuevos = [int(a.get("jugador_id", 0)) for a in nuevas_asignaciones]
+
+        if len(ids_nuevos) != len(ids_actuales):
+            raise ValueError("Debes asignar exactamente la misma cantidad de jugadores.")
+        if set(ids_nuevos) != set(ids_actuales):
+            raise ValueError("Debes usar exactamente los mismos jugadores de la jornada.")
+        if len(set(ids_nuevos)) != len(ids_nuevos):
+            raise ValueError("Hay jugadores repetidos en la reasignación.")
+
+        pares = set()
+        for a in nuevas_asignaciones:
+            cancha_id = int(a.get("cancha_jornada_id", 0))
+            posicion = int(a.get("posicion", 0))
+            if cancha_id not in cancha_ids:
+                raise ValueError("Se detectó una cancha inválida para esta jornada.")
+            if posicion <= 0:
+                raise ValueError("Las posiciones deben ser mayores a cero.")
+            par = (cancha_id, posicion)
+            if par in pares:
+                raise ValueError("Hay posiciones duplicadas dentro de una misma cancha.")
+            pares.add(par)
+
+        for cancha_id in cancha_ids:
+            conn.execute("DELETE FROM asignaciones WHERE cancha_jornada_id=?", (cancha_id,))
+
+        for a in nuevas_asignaciones:
+            conn.execute(
+                "INSERT INTO asignaciones (cancha_jornada_id, jugador_id, posicion) VALUES (?,?,?)",
+                (
+                    int(a["cancha_jornada_id"]),
+                    int(a["jugador_id"]),
+                    int(a["posicion"]),
+                ),
+            )
+
+
 def actualizar_horario_cancha(cancha_jornada_id: int, horario: str):
     """Actualiza el horario de una cancha puntual dentro de una jornada."""
     with get_conn() as conn:

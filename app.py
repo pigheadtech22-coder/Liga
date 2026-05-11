@@ -230,7 +230,7 @@ from utils.database import (
     crear_jugador, listar_jugadores, actualizar_jugador, eliminar_jugador,
     listar_jornadas, marcar_jornada_completada, eliminar_jornada,
     actualizar_horario_cancha, actualizar_cancha_fisica_cancha_jornada,
-    obtener_canchas_jornada,
+    obtener_canchas_jornada, guardar_asignaciones_jornada,
     guardar_resultado, guardar_ausencias_jornada, obtener_ausencias_jornada,
     guardar_asistencia_jornada, obtener_asistencia_jornada,
     calcular_ranking,
@@ -995,6 +995,64 @@ elif pagina == "📅  Jornadas":
                             )
                         else:
                             st.caption(f"Cancha {cancha_virtual_label(c['numero_cancha'])}: sin resultado cargado aún.")
+
+                    st.markdown("#### 🔀 Ajuste manual de canchas")
+                    if jornada["completada"]:
+                        st.info("Esta jornada está completada. Para evitar inconsistencias en ranking, el orden manual está bloqueado.")
+                    else:
+                        jugadores_slots = []
+                        for c in sorted(canchas, key=lambda x: x["numero_cancha"]):
+                            for jg in sorted(c.get("jugadores", []), key=lambda x: x.get("posicion", 99)):
+                                jugadores_slots.append(
+                                    {
+                                        "cancha_jornada_id": int(c["id"]),
+                                        "cancha_num": int(c["numero_cancha"]),
+                                        "posicion": int(jg.get("posicion", 0) or 0),
+                                        "jugador_id": int(jg.get("jugador_id", 0) or 0),
+                                    }
+                                )
+
+                        if not jugadores_slots:
+                            st.caption("No hay jugadores asignados para reordenar.")
+                        else:
+                            by_id = {
+                                int(j["jugador_id"]): j["nombre"]
+                                for c in canchas
+                                for j in c.get("jugadores", [])
+                                if int(j.get("jugador_id", 0) or 0)
+                            }
+                            option_labels = {
+                                jid: f"{nombre}"
+                                for jid, nombre in sorted(by_id.items(), key=lambda x: x[1])
+                            }
+                            labels = [option_labels[jid] for jid in option_labels.keys()]
+                            label_to_id = {v: k for k, v in option_labels.items()}
+
+                            st.caption("Elige manualmente quién va en cada cancha/posición y guarda cambios.")
+                            col_a, col_b = st.columns(2)
+                            for idx, slot in enumerate(jugadores_slots):
+                                _col = col_a if idx % 2 == 0 else col_b
+                                current_label = option_labels.get(slot["jugador_id"], "")
+                                _cv = cancha_virtual_label(slot["cancha_num"])
+                                chosen = _col.selectbox(
+                                    f"Cancha {_cv} · P{slot['posicion']}",
+                                    options=labels,
+                                    index=labels.index(current_label) if current_label in labels else 0,
+                                    key=f"manual_slot_{jornada['id']}_{slot['cancha_jornada_id']}_{slot['posicion']}",
+                                )
+                                slot["jugador_id"] = int(label_to_id[chosen])
+
+                            if st.button("💾 Guardar orden manual", key=f"save_manual_order_{jornada['id']}", use_container_width=True):
+                                ids_sel = [s["jugador_id"] for s in jugadores_slots]
+                                if len(set(ids_sel)) != len(ids_sel):
+                                    st.error("Hay jugadores repetidos. Cada jugador solo puede estar una vez.")
+                                else:
+                                    try:
+                                        guardar_asignaciones_jornada(jornada["id"], jugadores_slots)
+                                        st.success("Orden manual guardado correctamente.")
+                                        st.rerun()
+                                    except ValueError as e:
+                                        st.error(str(e))
 
                     st.markdown("#### ✅ Asistencia por horario")
                     grupos_horario: dict[str, list[dict]] = {}
