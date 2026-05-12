@@ -5,6 +5,7 @@ Sin dependencias externas — migrar a PostgreSQL en el futuro cambiando solo es
 """
 import os
 import sqlite3
+from functools import lru_cache
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -73,6 +74,26 @@ def _table_columns(conn: _ConnAdapter, table_name: str) -> set[str]:
         return {r["column_name"] for r in rows}
     rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     return {r["name"] for r in rows}
+
+
+def _clear_read_caches():
+    """Limpia caches de lecturas cuando cambia cualquier dato."""
+    for fn in (
+        listar_torneos,
+        obtener_torneo,
+        listar_horarios,
+        listar_jugadores,
+        obtener_jugador,
+        listar_jornadas,
+        obtener_canchas_jornada,
+        obtener_ausencias_jornada,
+        obtener_asistencia_jornada,
+        calcular_ranking,
+    ):
+        try:
+            fn.cache_clear()
+        except AttributeError:
+            pass
 
 
 @contextmanager
@@ -368,9 +389,12 @@ def crear_torneo(
                 logo_right_path,
             ),
         )
-        return cur.lastrowid
+        nuevo_id = cur.lastrowid
+    _clear_read_caches()
+    return nuevo_id
 
 
+@lru_cache(maxsize=128)
 def listar_torneos() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
@@ -379,6 +403,7 @@ def listar_torneos() -> list[dict]:
         return [dict(r) for r in rows]
 
 
+@lru_cache(maxsize=256)
 def obtener_torneo(torneo_id: int) -> dict | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM torneos WHERE id=?", (torneo_id,)).fetchone()
@@ -395,11 +420,13 @@ def actualizar_torneo(torneo_id: int, **kwargs):
         campos = ", ".join(f"{k}=?" for k in filtrado)
         valores = list(filtrado.values()) + [torneo_id]
         conn.execute(f"UPDATE torneos SET {campos} WHERE id=?", valores)
+    _clear_read_caches()
 
 
 def eliminar_torneo(torneo_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM torneos WHERE id=?", (torneo_id,))
+    _clear_read_caches()
 
 
 # ─────────────────────────── HORARIOS ───────────────────────────
@@ -415,8 +442,10 @@ def crear_horarios(torneo_id: int, horarios: list[str]):
                     "INSERT INTO horarios (torneo_id, nombre, orden) VALUES (?,?,?)",
                     (torneo_id, h, i),
                 )
+    _clear_read_caches()
 
 
+@lru_cache(maxsize=256)
 def listar_horarios(torneo_id: int) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
@@ -434,14 +463,18 @@ def crear_jugador(torneo_id: int, nombre: str) -> int:
                 "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?) RETURNING id",
                 (torneo_id, nombre.strip()),
             ).fetchone()
-            return int(row["id"])
-        cur = conn.execute(
-            "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?)",
-            (torneo_id, nombre.strip()),
-        )
-        return cur.lastrowid
+            nuevo_id = int(row["id"])
+        else:
+            cur = conn.execute(
+                "INSERT INTO jugadores (torneo_id, nombre) VALUES (?,?)",
+                (torneo_id, nombre.strip()),
+            )
+            nuevo_id = cur.lastrowid
+    _clear_read_caches()
+    return nuevo_id
 
 
+@lru_cache(maxsize=512)
 def listar_jugadores(torneo_id: int, solo_activos: bool = False) -> list[dict]:
     sql = "SELECT * FROM jugadores WHERE torneo_id=?"
     if solo_activos:
@@ -452,6 +485,7 @@ def listar_jugadores(torneo_id: int, solo_activos: bool = False) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+@lru_cache(maxsize=1024)
 def obtener_jugador(jugador_id: int) -> dict | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM jugadores WHERE id=?", (jugador_id,)).fetchone()
@@ -463,11 +497,13 @@ def actualizar_jugador(jugador_id: int, **kwargs):
     valores = list(kwargs.values()) + [jugador_id]
     with get_conn() as conn:
         conn.execute(f"UPDATE jugadores SET {campos} WHERE id=?", valores)
+    _clear_read_caches()
 
 
 def eliminar_jugador(jugador_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM jugadores WHERE id=?", (jugador_id,))
+    _clear_read_caches()
 
 
 # ─────────────────────────── JORNADAS ───────────────────────────
@@ -479,14 +515,18 @@ def crear_jornada(torneo_id: int, numero: int, fecha: str = "") -> int:
                 "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?) RETURNING id",
                 (torneo_id, numero, fecha),
             ).fetchone()
-            return int(row["id"])
-        cur = conn.execute(
-            "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?)",
-            (torneo_id, numero, fecha),
-        )
-        return cur.lastrowid
+            nuevo_id = int(row["id"])
+        else:
+            cur = conn.execute(
+                "INSERT INTO jornadas (torneo_id, numero, fecha) VALUES (?,?,?)",
+                (torneo_id, numero, fecha),
+            )
+            nuevo_id = cur.lastrowid
+    _clear_read_caches()
+    return nuevo_id
 
 
+@lru_cache(maxsize=256)
 def listar_jornadas(torneo_id: int) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
@@ -498,11 +538,13 @@ def listar_jornadas(torneo_id: int) -> list[dict]:
 def marcar_jornada_completada(jornada_id: int):
     with get_conn() as conn:
         conn.execute("UPDATE jornadas SET completada=1 WHERE id=?", (jornada_id,))
+    _clear_read_caches()
 
 
 def eliminar_jornada(jornada_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM jornadas WHERE id=?", (jornada_id,))
+    _clear_read_caches()
 
 
 # ──────────────────────── CANCHAS / ASIGNACIONES ────────────────
@@ -514,12 +556,15 @@ def crear_cancha_jornada(jornada_id: int, numero_cancha: int, horario: str = "")
                 "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?) RETURNING id",
                 (jornada_id, numero_cancha, horario),
             ).fetchone()
-            return int(row["id"])
-        cur = conn.execute(
-            "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?)",
-            (jornada_id, numero_cancha, horario),
-        )
-        return cur.lastrowid
+            nuevo_id = int(row["id"])
+        else:
+            cur = conn.execute(
+                "INSERT INTO canchas_jornada (jornada_id, numero_cancha, horario) VALUES (?,?,?)",
+                (jornada_id, numero_cancha, horario),
+            )
+            nuevo_id = cur.lastrowid
+    _clear_read_caches()
+    return nuevo_id
 
 
 def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
@@ -528,6 +573,7 @@ def crear_asignacion(cancha_jornada_id: int, jugador_id: int, posicion: int):
             "INSERT INTO asignaciones (cancha_jornada_id, jugador_id, posicion) VALUES (?,?,?)",
             (cancha_jornada_id, jugador_id, posicion),
         )
+    _clear_read_caches()
 
 
 def guardar_asignaciones_jornada(jornada_id: int, nuevas_asignaciones: list[dict]):
@@ -592,6 +638,7 @@ def guardar_asignaciones_jornada(jornada_id: int, nuevas_asignaciones: list[dict
                     int(a["posicion"]),
                 ),
             )
+    _clear_read_caches()
 
 
 def actualizar_horario_cancha(cancha_jornada_id: int, horario: str):
@@ -624,6 +671,7 @@ def actualizar_horario_cancha(cancha_jornada_id: int, horario: str):
             "UPDATE canchas_jornada SET horario=? WHERE id=?",
             (horario_nuevo, cancha_jornada_id),
         )
+    _clear_read_caches()
 
 
 def actualizar_cancha_fisica_cancha_jornada(cancha_jornada_id: int, cancha_fisica: str):
@@ -657,8 +705,10 @@ def actualizar_cancha_fisica_cancha_jornada(cancha_jornada_id: int, cancha_fisic
             "UPDATE canchas_jornada SET cancha_fisica=? WHERE id=?",
             (nueva, cancha_jornada_id),
         )
+    _clear_read_caches()
 
 
+@lru_cache(maxsize=256)
 def obtener_canchas_jornada(jornada_id: int) -> list[dict]:
     """Devuelve canchas con sus jugadores ya incluidos."""
     with get_conn() as conn:
@@ -714,6 +764,7 @@ def guardar_resultado(
                  set3_a=excluded.set3_a, set3_b=excluded.set3_b""",
             (cancha_jornada_id, s1a, s1b, s2a, s2b, s3a, s3b),
         )
+    _clear_read_caches()
 
 
 def guardar_ausencias_jornada(jornada_id: int, penalizaciones: dict[int, int]):
@@ -728,8 +779,10 @@ def guardar_ausencias_jornada(jornada_id: int, penalizaciones: dict[int, int]):
                    VALUES (?,?,?)""",
                 (jornada_id, jugador_id, penalizacion),
             )
+    _clear_read_caches()
 
 
+@lru_cache(maxsize=256)
 def obtener_ausencias_jornada(jornada_id: int) -> dict[int, int]:
     """Devuelve {jugador_id: penalizacion} para una jornada."""
     with get_conn() as conn:
@@ -751,8 +804,10 @@ def guardar_asistencia_jornada(jornada_id: int, jugador_ids_llegaron: set[int] |
                    VALUES (?,?,1)""",
                 (jornada_id, jugador_id),
             )
+    _clear_read_caches()
 
 
+@lru_cache(maxsize=256)
 def obtener_asistencia_jornada(jornada_id: int) -> set[int]:
     """Devuelve el conjunto de jugador_id marcados como presentes para una jornada."""
     with get_conn() as conn:
@@ -765,6 +820,7 @@ def obtener_asistencia_jornada(jornada_id: int) -> set[int]:
 
 # ──────────────────────── RANKING ───────────────────────────────
 
+@lru_cache(maxsize=128)
 def calcular_ranking(torneo_id: int, completada_only: bool = True) -> list[dict]:
     """
     Devuelve ranking general calculado desde la DB.
