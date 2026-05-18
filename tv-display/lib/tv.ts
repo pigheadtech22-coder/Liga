@@ -119,14 +119,36 @@ export async function fetchTvSnapshot(input: TvRequest = {}): Promise<TvSnapshot
   const torneoId = input.torneoId ?? null;
   const jornadaId = input.jornadaId ?? null;
 
-  const torneoRow = torneoId
-    ? await pool.query(
-        "SELECT id, nombre, descripcion FROM torneos WHERE id=$1 LIMIT 1",
-        [torneoId]
-      )
-    : await pool.query(
-        "SELECT id, nombre, descripcion FROM torneos ORDER BY id DESC LIMIT 1"
-      );
+  let torneoRow;
+  try {
+    torneoRow = torneoId
+      ? await pool.query(
+          "SELECT id, nombre, descripcion FROM torneos WHERE id=$1 LIMIT 1",
+          [torneoId]
+        )
+      : await pool.query(
+          "SELECT id, nombre, descripcion FROM torneos ORDER BY id DESC LIMIT 1"
+        );
+  } catch (error) {
+    const isMissingDescripcionColumn =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "42703";
+
+    if (!isMissingDescripcionColumn) {
+      throw error;
+    }
+
+    torneoRow = torneoId
+      ? await pool.query(
+          "SELECT id, nombre, NULL::text AS descripcion FROM torneos WHERE id=$1 LIMIT 1",
+          [torneoId]
+        )
+      : await pool.query(
+          "SELECT id, nombre, NULL::text AS descripcion FROM torneos ORDER BY id DESC LIMIT 1"
+        );
+  }
 
   const torneo = torneoRow.rows[0]
     ? {
