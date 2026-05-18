@@ -34,6 +34,10 @@ export type TvSnapshot = {
     id: number;
     nombre: string;
     descripcion: string | null;
+    tv_header_logo_path: string | null;
+    logo_left_path: string | null;
+    logo_right_path: string | null;
+    sponsor_logos: string[];
   } | null;
   jornada: {
     id: number;
@@ -123,11 +127,11 @@ export async function fetchTvSnapshot(input: TvRequest = {}): Promise<TvSnapshot
   try {
     torneoRow = torneoId
       ? await pool.query(
-          "SELECT id, nombre, descripcion FROM torneos WHERE id=$1 LIMIT 1",
+          "SELECT id, nombre, descripcion, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos WHERE id=$1 LIMIT 1",
           [torneoId]
         )
       : await pool.query(
-          "SELECT id, nombre, descripcion FROM torneos ORDER BY id DESC LIMIT 1"
+          "SELECT id, nombre, descripcion, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos ORDER BY id DESC LIMIT 1"
         );
   } catch (error) {
     const isMissingDescripcionColumn =
@@ -142,19 +146,31 @@ export async function fetchTvSnapshot(input: TvRequest = {}): Promise<TvSnapshot
 
     torneoRow = torneoId
       ? await pool.query(
-          "SELECT id, nombre, NULL::text AS descripcion FROM torneos WHERE id=$1 LIMIT 1",
+          "SELECT id, nombre, NULL::text AS descripcion, NULL::text AS tv_header_logo_path, NULL::text AS logo_left_path, NULL::text AS logo_right_path, NULL::text AS sponsor_logo_1_path, NULL::text AS sponsor_logo_2_path, NULL::text AS sponsor_logo_3_path, NULL::text AS sponsor_logo_4_path, NULL::text AS sponsor_logo_5_path, NULL::text AS sponsor_logo_6_path, NULL::text AS sponsor_logo_7_path, NULL::text AS sponsor_logo_8_path FROM torneos WHERE id=$1 LIMIT 1",
           [torneoId]
         )
       : await pool.query(
-          "SELECT id, nombre, NULL::text AS descripcion FROM torneos ORDER BY id DESC LIMIT 1"
+          "SELECT id, nombre, NULL::text AS descripcion, NULL::text AS tv_header_logo_path, NULL::text AS logo_left_path, NULL::text AS logo_right_path, NULL::text AS sponsor_logo_1_path, NULL::text AS sponsor_logo_2_path, NULL::text AS sponsor_logo_3_path, NULL::text AS sponsor_logo_4_path, NULL::text AS sponsor_logo_5_path, NULL::text AS sponsor_logo_6_path, NULL::text AS sponsor_logo_7_path, NULL::text AS sponsor_logo_8_path FROM torneos ORDER BY id DESC LIMIT 1"
         );
+  }
+
+  const sponsorLogos: string[] = [];
+  for (let i = 1; i <= 8; i++) {
+    const logoPath = torneoRow.rows[0]?.[`sponsor_logo_${i}_path`];
+    if (logoPath) {
+      sponsorLogos.push(String(logoPath));
+    }
   }
 
   const torneo = torneoRow.rows[0]
     ? {
         id: Number(torneoRow.rows[0].id),
         nombre: String(torneoRow.rows[0].nombre ?? "Torneo"),
-        descripcion: torneoRow.rows[0].descripcion ? String(torneoRow.rows[0].descripcion) : null
+        descripcion: torneoRow.rows[0].descripcion ? String(torneoRow.rows[0].descripcion) : null,
+        tv_header_logo_path: torneoRow.rows[0].tv_header_logo_path ? String(torneoRow.rows[0].tv_header_logo_path) : null,
+        logo_left_path: torneoRow.rows[0].logo_left_path ? String(torneoRow.rows[0].logo_left_path) : null,
+        logo_right_path: torneoRow.rows[0].logo_right_path ? String(torneoRow.rows[0].logo_right_path) : null,
+        sponsor_logos: sponsorLogos
       }
     : null;
 

@@ -137,16 +137,30 @@ export default function TvDisplayClient() {
   return (
     <main className="tv-fullscreen">
       <header className="tv-header">
-        <div className="tv-header-left">
-          <div className="tv-brand-mark">🏓</div>
-          <div className="tv-header-info">
-            <h1>{snapshot.torneo?.nombre || "Liga APJ"}</h1>
-            <p>Jornada {snapshot.jornada?.numero || "—"}</p>
+        {snapshot.torneo?.tv_header_logo_path ? (
+          <div className="tv-header-logo">
+            <img
+              src={`/api/asset/${snapshot.torneo.tv_header_logo_path}`}
+              alt="Torneo Logo"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
           </div>
-        </div>
+        ) : (
+          <div className="tv-header-left">
+            <div className="tv-brand-mark">🏓</div>
+            <div className="tv-header-info">
+              <h1>{snapshot.torneo?.nombre || "Liga APJ"}</h1>
+              <p>Jornada {snapshot.jornada?.numero || "—"}</p>
+            </div>
+          </div>
+        )}
+        
         <div className="tv-header-center">
           <p className="tv-horario">🕒 {currentPage.horario}</p>
         </div>
+        
         {pages.length > 1 && (
           <div className="tv-page-counter">
             {pageIndex + 1}/{pages.length}
@@ -154,7 +168,7 @@ export default function TvDisplayClient() {
         )}
       </header>
 
-      <section className="tv-content">
+      <section className="tv-content" key={pageIndex}>
         <div className="tv-grid">
           {currentPage.courts.map((court, idx) => (
             <CourtCard
@@ -168,11 +182,27 @@ export default function TvDisplayClient() {
       </section>
 
       <footer className="tv-footer">
-        <div className="tv-stats">
-          <span>🏛️ {snapshot.summary.canchasCount} canchas</span>
-          <span>👥 {snapshot.summary.presentesCount}/{snapshot.summary.jugadoresCount}</span>
-          <span>🎾 {snapshot.summary.resultadosCount} resultados</span>
-        </div>
+        {snapshot.torneo?.sponsor_logos.length ? (
+          <div className="tv-sponsors">
+            {snapshot.torneo.sponsor_logos.map((logoPath, idx) => (
+              <div key={idx} className="tv-sponsor-item">
+                <img
+                  src={`/api/asset/${logoPath}`}
+                  alt={`Sponsor ${idx + 1}`}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="tv-stats">
+            <span>🏛️ {snapshot.summary.canchasCount} canchas</span>
+            <span>👥 {snapshot.summary.presentesCount}/{snapshot.summary.jugadoresCount}</span>
+            <span>🎾 {snapshot.summary.resultadosCount} resultados</span>
+          </div>
+        )}
       </footer>
     </main>
   );
