@@ -14,3 +14,9 @@ Thumbs.db
 
 # Runtime caches
 assets/.cache/
+
+# Next.js TV display
+tv-display/node_modules/
+tv-display/.next/
+tv-display/.env.local
+tv-display/.env*.local
