@@ -91,11 +91,14 @@ body {
   gap: 2rem;
 }
 
+/* Logo principal TV (si existe) */
 .tv-header-logo {
   height: 100%;
-  max-width: 400px;
+  max-width: 500px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex: 1;
 }
 
 .tv-header-logo img {
@@ -106,11 +109,58 @@ body {
   display: block;
 }
 
+/* Fallback: logo_left + nombre + logo_right */
+.tv-header-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  height: 100%;
+  flex: 1;
+}
+
+.tv-header-left,
+.tv-header-right {
+  flex: 0 0 auto;
+  height: 100%;
+  max-width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv-logo-side {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.tv-header-center-text {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv-header-center-text h1 {
+  font-family: "Bebas Neue", serif;
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  line-height: 1;
+  margin: 0;
+}
+
+/* Fallback simple (sin logos) */
 .tv-header-left {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex: 1;
+  max-width: none;
 }
 
 .tv-header-left .tv-brand-mark {

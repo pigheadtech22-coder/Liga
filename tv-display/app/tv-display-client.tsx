@@ -137,15 +137,45 @@ export default function TvDisplayClient() {
   return (
     <main className="tv-fullscreen">
       <header className="tv-header">
-        {snapshot.torneo?.tv_header_logo_path ? (
+        {snapshot.torneo?.tv_header_logo_path && snapshot.torneo.tv_header_logo_path.trim() ? (
           <div className="tv-header-logo">
             <img
-              src={`/api/asset/${snapshot.torneo.tv_header_logo_path}`}
+              src={`/api/asset/${snapshot.torneo.tv_header_logo_path.replace(/\\/g, "/")}`}
               alt="Torneo Logo"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
+          </div>
+        ) : snapshot.torneo?.logo_left_path ? (
+          <div className="tv-header-fallback">
+            <div className="tv-header-left">
+              {snapshot.torneo.logo_left_path && (
+                <img
+                  src={`/api/asset/${snapshot.torneo.logo_left_path.replace(/\\/g, "/")}`}
+                  alt="Logo Left"
+                  className="tv-logo-side"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+            </div>
+            <div className="tv-header-center-text">
+              <h1>{snapshot.torneo?.nombre || "Liga APJ"}</h1>
+            </div>
+            <div className="tv-header-right">
+              {snapshot.torneo?.logo_right_path && (
+                <img
+                  src={`/api/asset/${snapshot.torneo.logo_right_path.replace(/\\/g, "/")}`}
+                  alt="Logo Right"
+                  className="tv-logo-side"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+            </div>
           </div>
         ) : (
           <div className="tv-header-left">
@@ -187,7 +217,7 @@ export default function TvDisplayClient() {
             {snapshot.torneo.sponsor_logos.map((logoPath, idx) => (
               <div key={idx} className="tv-sponsor-item">
                 <img
-                  src={`/api/asset/${logoPath}`}
+                  src={`/api/asset/${logoPath.replace(/\\/g, "/")}`}
                   alt={`Sponsor ${idx + 1}`}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
