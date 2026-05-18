@@ -31,9 +31,13 @@ export default function TvDisplayClient() {
 
   useEffect(() => {
     let alive = true;
+    let firstRun = true;
+
     async function loadSnapshot() {
       try {
-        setLoading(true);
+        if (firstRun) {
+          setLoading(true);
+        }
         const response = await fetch(`/api/tv${query ? `?${query}` : ""}`, {
           cache: "no-store"
         });
@@ -49,7 +53,10 @@ export default function TvDisplayClient() {
         if (!alive) return;
         setError(err instanceof Error ? err.message : "Error desconocido");
       } finally {
-        if (alive) setLoading(false);
+        if (alive && firstRun) {
+          setLoading(false);
+          firstRun = false;
+        }
       }
     }
     void loadSnapshot();
@@ -62,6 +69,28 @@ export default function TvDisplayClient() {
       window.clearInterval(interval);
     };
   }, [query]);
+
+  const assetBaseUrl = (process.env.NEXT_PUBLIC_TV_ASSET_BASE_URL ?? "").trim();
+
+  function toAssetUrl(rawPath: string | null | undefined): string | null {
+    if (!rawPath) return null;
+
+    const clean = rawPath.trim().replace(/\\/g, "/");
+    if (!clean) return null;
+
+    if (/^https?:\/\//i.test(clean)) {
+      return clean;
+    }
+
+    if (assetBaseUrl) {
+      const base = assetBaseUrl.replace(/\/+$/, "");
+      const rel = clean.replace(/^\/+/, "");
+      return `${base}/${rel}`;
+    }
+
+    const rel = clean.replace(/^\/+/, "");
+    return `/api/asset/${rel}`;
+  }
 
   // Agrupar por horario, máx 4 canchas por pantalla
   const pages: PageGroup[] = useMemo(() => {
@@ -140,19 +169,19 @@ export default function TvDisplayClient() {
         {snapshot.torneo?.tv_header_logo_path && snapshot.torneo.tv_header_logo_path.trim() ? (
           <div className="tv-header-logo">
             <img
-              src={`/api/asset/${snapshot.torneo.tv_header_logo_path.replace(/\\/g, "/")}`}
+              src={toAssetUrl(snapshot.torneo.tv_header_logo_path) ?? ""}
               alt="Torneo Logo"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
           </div>
-        ) : snapshot.torneo?.logo_left_path ? (
+        ) : snapshot.torneo?.logo_left_path || snapshot.torneo?.logo_right_path ? (
           <div className="tv-header-fallback">
             <div className="tv-header-left">
               {snapshot.torneo.logo_left_path && (
                 <img
-                  src={`/api/asset/${snapshot.torneo.logo_left_path.replace(/\\/g, "/")}`}
+                  src={toAssetUrl(snapshot.torneo.logo_left_path) ?? ""}
                   alt="Logo Left"
                   className="tv-logo-side"
                   onError={(e) => {
@@ -167,7 +196,7 @@ export default function TvDisplayClient() {
             <div className="tv-header-right">
               {snapshot.torneo?.logo_right_path && (
                 <img
-                  src={`/api/asset/${snapshot.torneo.logo_right_path.replace(/\\/g, "/")}`}
+                  src={toAssetUrl(snapshot.torneo.logo_right_path) ?? ""}
                   alt="Logo Right"
                   className="tv-logo-side"
                   onError={(e) => {
@@ -198,7 +227,7 @@ export default function TvDisplayClient() {
         )}
       </header>
 
-      <section className="tv-content" key={pageIndex}>
+      <section className="tv-content">
         <div className="tv-grid">
           {currentPage.courts.map((court, idx) => (
             <CourtCard
@@ -217,7 +246,7 @@ export default function TvDisplayClient() {
             {snapshot.torneo.sponsor_logos.map((logoPath, idx) => (
               <div key={idx} className="tv-sponsor-item">
                 <img
-                  src={`/api/asset/${logoPath.replace(/\\/g, "/")}`}
+                  src={toAssetUrl(logoPath) ?? ""}
                   alt={`Sponsor ${idx + 1}`}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
