@@ -44,6 +44,26 @@ body {
   background: #000;
 }
 
+.tv-fullscreen.theme-apj {
+  --accent: #e10600;
+  --accent-dark: #b80500;
+  --muted: #8b8b8b;
+}
+
+.tv-fullscreen.theme-ocean {
+  --accent: #00a8e8;
+  --accent-dark: #0077b6;
+  --muted: #9cc8d6;
+  background: linear-gradient(135deg, #011627 0%, #022b3a 100%);
+}
+
+.tv-fullscreen.theme-sunset {
+  --accent: #fb5607;
+  --accent-dark: #ca3e05;
+  --muted: #d1a894;
+  background: linear-gradient(135deg, #2d1a1a 0%, #4a1f1f 100%);
+}
+
 .tv-loading {
   flex: 1;
   display: flex;

@@ -12,6 +12,19 @@ type PageGroup = {
   courts: Court[];
 };
 
+function horarioSortValue(horario: string | null): number {
+  const raw = String(horario ?? "").trim().toLowerCase();
+  if (!raw) return Number.MAX_SAFE_INTEGER;
+
+  const match = raw.match(/(\d{1,2})\s*[:h]\s*(\d{2})?/i);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+
+  const hh = Number(match[1]);
+  const mm = Number(match[2] ?? "0");
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return Number.MAX_SAFE_INTEGER;
+  return hh * 60 + mm;
+}
+
 export default function TvDisplayClient() {
   const searchParams = useSearchParams();
   const [snapshot, setSnapshot] = useState<TvSnapshot | null>(null);
@@ -30,6 +43,14 @@ export default function TvDisplayClient() {
     if (torneoId) params.set("torneo_id", torneoId);
     if (jornadaId) params.set("jornada_id", jornadaId);
     return params.toString();
+  }, [searchParams]);
+
+  const selectedTheme = useMemo(() => {
+    const raw = (searchParams.get("theme") ?? "apj").toLowerCase();
+    if (raw === "ocean" || raw === "sunset" || raw === "apj") {
+      return raw;
+    }
+    return "apj";
   }, [searchParams]);
 
   useEffect(() => {
@@ -179,13 +200,24 @@ export default function TvDisplayClient() {
       if (!byHorario.has(key)) byHorario.set(key, []);
       byHorario.get(key)!.push(court);
     });
+
+    const sortedGroups = Array.from(byHorario.entries()).sort((left, right) => {
+      const leftMinutes = horarioSortValue(left[0]);
+      const rightMinutes = horarioSortValue(right[0]);
+      if (leftMinutes !== rightMinutes) {
+        return leftMinutes - rightMinutes;
+      }
+      return String(left[0] ?? "").localeCompare(String(right[0] ?? ""), "es");
+    });
+
     const result: PageGroup[] = [];
     const pageSize = 4;
-    for (const [horario, courts] of byHorario.entries()) {
-      for (let i = 0; i < courts.length; i += pageSize) {
+    for (const [horario, courts] of sortedGroups) {
+      const orderedCourts = [...courts].sort((a, b) => a.numero_cancha - b.numero_cancha);
+      for (let i = 0; i < orderedCourts.length; i += pageSize) {
         result.push({
           horario,
-          courts: courts.slice(i, i + pageSize)
+          courts: orderedCourts.slice(i, i + pageSize)
         });
       }
     }
@@ -217,7 +249,7 @@ export default function TvDisplayClient() {
 
   if (loading || !snapshot) {
     return (
-      <main className="tv-fullscreen">
+      <main className={`tv-fullscreen theme-${selectedTheme}`}>
         <div className="tv-loading">
           <LoadingBrand />
           <div className="tv-loading-text">{loading ? "Cargando..." : "Sin datos"}</div>
@@ -228,7 +260,7 @@ export default function TvDisplayClient() {
 
   if (error) {
     return (
-      <main className="tv-fullscreen">
+      <main className={`tv-fullscreen theme-${selectedTheme}`}>
         <div className="tv-loading tv-error">
           <div className="tv-brand-mark">⚠️</div>
           <div className="tv-loading-text">{error}</div>
@@ -240,7 +272,7 @@ export default function TvDisplayClient() {
   const currentPage = pages[pageIndex];
   if (!currentPage) {
     return (
-      <main className="tv-fullscreen">
+      <main className={`tv-fullscreen theme-${selectedTheme}`}>
         <div className="tv-loading">
           <LoadingBrand />
           <div className="tv-loading-text">No hay canchas</div>
@@ -252,7 +284,7 @@ export default function TvDisplayClient() {
   const presentSet = new Set(snapshot.asistenciaIds);
 
   return (
-    <main className="tv-fullscreen">
+    <main className={`tv-fullscreen theme-${selectedTheme}`}>
       <header className="tv-header">
         {snapshot.torneo?.tv_header_logo_path && snapshot.torneo.tv_header_logo_path.trim() ? (
           <div className="tv-header-logo">
