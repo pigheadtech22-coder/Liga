@@ -2064,11 +2064,20 @@ elif pagina == "⚙️  Configuración":
                 sponsor_path = sponsor_actuales[idx - 1]
                 sponsor_file = sponsor_files[idx - 1]
                 if sponsor_file:
-                    sponsor_path = _guardar_upload_persistente(
-                        sponsor_file,
-                        folder=f"torneos/{tid}/sponsors",
-                        fallback_dir=assets_dir,
-                    )
+                    if storage_enabled():
+                        sponsor_path = upload_bytes_to_storage(
+                            build_storage_object_path(
+                                f"torneos/{tid}/sponsors",
+                                file_name=f"sponsor_{idx}",
+                            ),
+                            sponsor_file.getvalue(),
+                            sponsor_file.type or None,
+                        )
+                    else:
+                        sponsor_ext = extension_desde_filename(sponsor_file.name)
+                        sponsor_dest = assets_dir / f"sponsor_{idx}{sponsor_ext}"
+                        sponsor_dest.write_bytes(sponsor_file.getvalue())
+                        sponsor_path = ruta_relativa_a_base(sponsor_dest)
                 sponsor_updates[f"sponsor_logo_{idx}_path"] = sponsor_path
 
             actualizar_torneo(tid, nombre=nombre, temporada=temporada,
