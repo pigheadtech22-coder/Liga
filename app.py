@@ -7,6 +7,7 @@ import tempfile
 import os
 import io
 import time
+import uuid
 from urllib.parse import urlencode
 from datetime import date, datetime
 from pathlib import Path
@@ -80,9 +81,10 @@ def _guardar_upload_persistente(uploaded_file, *, folder: str, fallback_dir: Pat
         return ""
 
     ext = extension_desde_filename(uploaded_file.name)
-    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    token = uuid.uuid4().hex[:8]
     stem = slugify(Path(uploaded_file.name).stem)
-    out_name = f"{stem}_{stamp}{ext}"
+    out_name = f"{stem}_{stamp}_{token}{ext}"
     payload = uploaded_file.getvalue()
 
     if storage_enabled():

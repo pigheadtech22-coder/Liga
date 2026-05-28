@@ -128,19 +128,13 @@ export default function TvDisplayClient() {
   }, [query]);
 
   const footerLogos = useMemo(() => {
-    const candidates = [
+    return [
       ...(snapshot?.torneo?.sponsor_logos ?? []),
       snapshot?.torneo?.logo_left_path ?? null,
       snapshot?.torneo?.logo_right_path ?? null
     ]
       .filter((value): value is string => Boolean(value && value.trim()))
       .map((value) => value.trim());
-
-    const unique = new Set<string>();
-    for (const item of candidates) {
-      unique.add(item);
-    }
-    return Array.from(unique);
   }, [snapshot?.torneo]);
 
   if (loading || !snapshot) {
