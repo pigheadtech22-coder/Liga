@@ -71,6 +71,7 @@ export default function TvDisplayClient() {
   }, [query]);
 
   const assetBaseUrl = (process.env.NEXT_PUBLIC_TV_ASSET_BASE_URL ?? "").trim();
+  const loadingBrandUrl = (process.env.NEXT_PUBLIC_TV_LOADING_LOGO_URL ?? "").trim();
 
   function toAssetUrl(rawPath: string | null | undefined): string | null {
     if (!rawPath) return null;
@@ -90,6 +91,22 @@ export default function TvDisplayClient() {
 
     const rel = clean.replace(/^\/+/, "");
     return `/api/asset/${rel}`;
+  }
+
+  function LoadingBrand() {
+    if (!loadingBrandUrl) {
+      return <div className="tv-brand-mark">🏓</div>;
+    }
+    return (
+      <img
+        src={loadingBrandUrl}
+        alt="Marca"
+        className="tv-loading-brand"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
   }
 
   // Agrupar por horario, máx 4 canchas por pantalla
@@ -141,7 +158,7 @@ export default function TvDisplayClient() {
     return (
       <main className="tv-fullscreen">
         <div className="tv-loading">
-          <div className="tv-brand-mark">🏓</div>
+          <LoadingBrand />
           <div className="tv-loading-text">{loading ? "Cargando..." : "Sin datos"}</div>
         </div>
       </main>
@@ -164,7 +181,7 @@ export default function TvDisplayClient() {
     return (
       <main className="tv-fullscreen">
         <div className="tv-loading">
-          <div className="tv-brand-mark">📺</div>
+          <LoadingBrand />
           <div className="tv-loading-text">No hay canchas</div>
         </div>
       </main>
@@ -319,7 +336,11 @@ function CourtCard({
             <span className="tv-physical">{court.cancha_fisica}</span>
           )}
         </div>
-        {court.resultado && <span className="tv-badge-live">En juego</span>}
+        {court.resultado ? (
+          <span className="tv-badge-done">Finalizado</span>
+        ) : (
+          <span className="tv-badge-pending">Pendiente</span>
+        )}
       </div>
 
       <div className="tv-players">

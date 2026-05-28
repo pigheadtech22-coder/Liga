@@ -68,6 +68,13 @@ body {
   font-weight: 500;
 }
 
+.tv-loading-brand {
+  width: min(320px, 48vw);
+  max-height: 140px;
+  object-fit: contain;
+  display: block;
+}
+
 .tv-error .tv-brand-mark {
   font-size: 5rem;
 }
@@ -328,7 +335,8 @@ body {
   border-left: 2px solid var(--accent);
 }
 
-.tv-badge-live {
+.tv-badge-done,
+.tv-badge-pending {
   background: var(--accent);
   color: #000;
   font-size: 0.75rem;
@@ -338,6 +346,16 @@ body {
   text-transform: uppercase;
   letter-spacing: 1px;
   flex-shrink: 0;
+}
+
+.tv-badge-done {
+  background: #4ade80;
+  color: #06210f;
+}
+
+.tv-badge-pending {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 /* ─── Players List ─── */
@@ -423,7 +441,9 @@ body {
 .tv-scores {
   display: flex;
   gap: 0.5rem;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .tv-score {
