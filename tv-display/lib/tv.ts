@@ -147,11 +147,11 @@ export async function fetchTvSnapshot(input: TvRequest = {}): Promise<TvSnapshot
 
     torneoRow = torneoId
       ? await pool.query(
-          "SELECT id, nombre, NULL::text AS descripcion, tv_theme, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos WHERE id=$1 LIMIT 1",
+          "SELECT id, nombre, NULL::text AS descripcion, NULL::text AS tv_theme, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos WHERE id=$1 LIMIT 1",
           [torneoId]
         )
       : await pool.query(
-          "SELECT id, nombre, NULL::text AS descripcion, tv_theme, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos ORDER BY id DESC LIMIT 1"
+          "SELECT id, nombre, NULL::text AS descripcion, NULL::text AS tv_theme, tv_header_logo_path, logo_left_path, logo_right_path, sponsor_logo_1_path, sponsor_logo_2_path, sponsor_logo_3_path, sponsor_logo_4_path, sponsor_logo_5_path, sponsor_logo_6_path, sponsor_logo_7_path, sponsor_logo_8_path FROM torneos ORDER BY id DESC LIMIT 1"
         );
   }
 
