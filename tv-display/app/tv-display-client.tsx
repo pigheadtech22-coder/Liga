@@ -45,12 +45,12 @@ export default function TvDisplayClient() {
     return params.toString();
   }, [searchParams]);
 
-  const selectedTheme = useMemo(() => {
-    const raw = (searchParams.get("theme") ?? "apj").toLowerCase();
+  const themeFromQuery = useMemo(() => {
+    const raw = (searchParams.get("theme") ?? "").toLowerCase();
     if (raw === "ocean" || raw === "sunset" || raw === "apj") {
       return raw;
     }
-    return "apj";
+    return "";
   }, [searchParams]);
 
   useEffect(() => {
@@ -246,6 +246,17 @@ export default function TvDisplayClient() {
       .filter((value): value is string => Boolean(value && value.trim()))
       .map((value) => value.trim());
   }, [snapshot?.torneo]);
+
+  const selectedTheme = useMemo(() => {
+    if (themeFromQuery) {
+      return themeFromQuery;
+    }
+    const dbTheme = String(snapshot?.torneo?.tv_theme ?? "").toLowerCase();
+    if (dbTheme === "ocean" || dbTheme === "sunset" || dbTheme === "apj") {
+      return dbTheme;
+    }
+    return "apj";
+  }, [snapshot?.torneo?.tv_theme, themeFromQuery]);
 
   if (loading || !snapshot) {
     return (

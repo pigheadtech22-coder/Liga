@@ -1991,6 +1991,13 @@ elif pagina == "⚙️  Configuración":
         nombre    = st.text_input("Nombre", value=torneo["nombre"])
         temporada = st.text_input("Temporada", value=torneo["temporada"])
         num_can   = st.number_input("Canchas", 1, 20, value=torneo["num_canchas"])
+        tv_theme_actual = str(torneo.get("tv_theme", "apj") or "apj").lower()
+        tv_theme = st.selectbox(
+            "Tema Pantalla TV (Vercel)",
+            options=["apj", "ocean", "sunset"],
+            index=["apj", "ocean", "sunset"].index(tv_theme_actual) if tv_theme_actual in {"apj", "ocean", "sunset"} else 0,
+            help="Este tema se usa automaticamente en la pantalla TV de Vercel para este torneo.",
+        )
 
         st.markdown("### Horarios")
         horarios_actuales = listar_horarios(tid)
@@ -2127,6 +2134,7 @@ elif pagina == "⚙️  Configuración":
                               num_canchas=int(num_can), logo_path=logo_left_path,
                               logo_left_path=logo_left_path, logo_right_path=logo_right_path,
                               canchas_fisicas_txt=canchas_fisicas_txt,
+                              tv_theme=tv_theme,
                               tv_header_logo_path=tv_header_logo_path,
                               **sponsor_updates)
             crear_horarios(tid, [h for h in horarios_txt.splitlines() if h.strip()])

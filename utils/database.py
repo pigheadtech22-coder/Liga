@@ -131,6 +131,7 @@ def init_db():
                 logo_left_path      TEXT    DEFAULT '',
                 logo_right_path     TEXT    DEFAULT '',
                 tv_header_logo_path TEXT    DEFAULT '',
+                tv_theme            TEXT    DEFAULT 'apj',
                 canchas_fisicas_txt TEXT    DEFAULT '',
                 creado_en           TIMESTAMP DEFAULT NOW()
             );
@@ -210,6 +211,8 @@ def init_db():
                     conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
             if "tv_header_logo_path" not in columnas_torneos:
                 conn.execute("ALTER TABLE torneos ADD COLUMN tv_header_logo_path TEXT DEFAULT ''")
+            if "tv_theme" not in columnas_torneos:
+                conn.execute("ALTER TABLE torneos ADD COLUMN tv_theme TEXT DEFAULT 'apj'")
             if "canchas_fisicas_txt" not in columnas_torneos:
                 conn.execute("ALTER TABLE torneos ADD COLUMN canchas_fisicas_txt TEXT DEFAULT ''")
 
@@ -220,6 +223,11 @@ def init_db():
                 """UPDATE torneos
                    SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
                    WHERE COALESCE(logo_left_path, '') = '' AND COALESCE(logo_path, '') != ''"""
+            )
+            conn.execute(
+                """UPDATE torneos
+                   SET tv_theme = 'apj'
+                   WHERE COALESCE(tv_theme, '') = ''"""
             )
             return
 
@@ -233,6 +241,7 @@ def init_db():
             logo_left_path        TEXT DEFAULT '',
             logo_right_path       TEXT DEFAULT '',
             tv_header_logo_path   TEXT DEFAULT '',
+            tv_theme             TEXT DEFAULT 'apj',
             canchas_fisicas_txt   TEXT DEFAULT '',
             creado_en   TEXT    DEFAULT (datetime('now'))
         );
@@ -336,6 +345,8 @@ def init_db():
                 conn.execute(f"ALTER TABLE torneos ADD COLUMN {col} TEXT DEFAULT ''")
         if "tv_header_logo_path" not in columnas_torneos:
             conn.execute("ALTER TABLE torneos ADD COLUMN tv_header_logo_path TEXT DEFAULT ''")
+        if "tv_theme" not in columnas_torneos:
+            conn.execute("ALTER TABLE torneos ADD COLUMN tv_theme TEXT DEFAULT 'apj'")
         if "canchas_fisicas_txt" not in columnas_torneos:
             conn.execute("ALTER TABLE torneos ADD COLUMN canchas_fisicas_txt TEXT DEFAULT ''")
 
@@ -346,6 +357,11 @@ def init_db():
             """UPDATE torneos
                SET logo_left_path = COALESCE(NULLIF(logo_left_path, ''), logo_path)
                WHERE COALESCE(logo_left_path, '') = '' AND COALESCE(logo_path, '') != ''"""
+        )
+        conn.execute(
+            """UPDATE torneos
+               SET tv_theme = 'apj'
+               WHERE COALESCE(tv_theme, '') = ''"""
         )
 
 
