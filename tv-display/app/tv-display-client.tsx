@@ -366,6 +366,21 @@ function CourtCard({
   index: number;
   presentSet: Set<number>;
 }) {
+  function courtVirtualLabel(numero: number): string {
+    let n = Number(numero);
+    if (!Number.isFinite(n) || n <= 0) {
+      return String(numero);
+    }
+
+    let letters = "";
+    while (n > 0) {
+      n -= 1;
+      letters = String.fromCharCode(65 + (n % 26)) + letters;
+      n = Math.floor(n / 26);
+    }
+    return letters;
+  }
+
   const s1a = court.resultado?.set1_a ?? 0;
   const s1b = court.resultado?.set1_b ?? 0;
   const s2a = court.resultado?.set2_a ?? 0;
@@ -392,7 +407,7 @@ function CourtCard({
     >
       <div className="tv-court-head">
         <div>
-          <strong>Cancha {String.fromCharCode(65 + index)}</strong>
+          <strong>Cancha {courtVirtualLabel(court.numero_cancha)}</strong>
           {court.cancha_fisica && (
             <span className="tv-physical">{court.cancha_fisica}</span>
           )}
