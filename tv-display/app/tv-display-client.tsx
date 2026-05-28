@@ -283,15 +283,15 @@ function CourtCard({
   const s3a = court.resultado?.set3_a ?? 0;
   const s3b = court.resultado?.set3_b ?? 0;
 
-  function totalGamesByPosicion(posicion: number): number {
-    // Formato americano:
+  function puntosByPosicion(posicion: number): number {
+    // Misma regla de Streamlit (utils/liga_engine.py):
     // Set1: P1+P2 vs P3+P4
     // Set2: P1+P3 vs P2+P4
     // Set3: P1+P4 vs P2+P3
-    if (posicion === 1) return s1a + s2a + s3a;
-    if (posicion === 2) return s1a + s2b + s3b;
-    if (posicion === 3) return s1b + s2a + s3b;
-    if (posicion === 4) return s1b + s2b + s3a;
+    if (posicion === 1) return (s1a - s1b) + (s2a - s2b) + (s3a - s3b);
+    if (posicion === 2) return (s1a - s1b) + (s2b - s2a) + (s3b - s3a);
+    if (posicion === 3) return (s1b - s1a) + (s2a - s2b) + (s3b - s3a);
+    if (posicion === 4) return (s1b - s1a) + (s2b - s2a) + (s3a - s3b);
     return 0;
   }
 
@@ -313,7 +313,7 @@ function CourtCard({
       <div className="tv-players">
         {court.jugadores.map((p) => {
           const present = presentSet.has(p.jugador_id);
-          const playerGames = totalGamesByPosicion(p.posicion);
+          const playerPoints = puntosByPosicion(p.posicion);
           return (
             <div
               key={`${court.id}-${p.jugador_id}`}
@@ -322,7 +322,9 @@ function CourtCard({
               <span className="tv-pos">{p.posicion}</span>
               <span className="tv-name-wrap">
                 <span className="tv-name">{p.nombre}</span>
-                {court.resultado ? <span className="tv-player-games">{playerGames}</span> : null}
+                {court.resultado ? (
+                  <span className="tv-player-games">{playerPoints > 0 ? `+${playerPoints}` : String(playerPoints)}</span>
+                ) : null}
               </span>
             </div>
           );
