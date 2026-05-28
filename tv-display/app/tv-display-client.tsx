@@ -349,12 +349,15 @@ export default function TvDisplayClient() {
         <div className="tv-header-center">
           <p className="tv-horario">🕒 {currentPage.horario}</p>
         </div>
-        
-        {pages.length > 1 && (
-          <div className="tv-page-counter">
-            {pageIndex + 1}/{pages.length}
-          </div>
-        )}
+
+        <div className="tv-meta-right">
+          <div className="tv-theme-chip">Tema: {selectedTheme.toUpperCase()}</div>
+          {pages.length > 1 && (
+            <div className="tv-page-counter">
+              {pageIndex + 1}/{pages.length}
+            </div>
+          )}
+        </div>
       </header>
 
       <section className="tv-content">
