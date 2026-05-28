@@ -162,6 +162,21 @@ export default function TvDisplayClient() {
   }
 
   const presentSet = new Set(snapshot.asistenciaIds);
+  const footerLogos = useMemo(() => {
+    const candidates = [
+      ...(snapshot.torneo?.sponsor_logos ?? []),
+      snapshot.torneo?.logo_left_path ?? null,
+      snapshot.torneo?.logo_right_path ?? null
+    ]
+      .filter((value): value is string => Boolean(value && value.trim()))
+      .map((value) => value.trim());
+
+    const unique = new Set<string>();
+    for (const item of candidates) {
+      unique.add(item);
+    }
+    return Array.from(unique);
+  }, [snapshot.torneo]);
 
   return (
     <main className="tv-fullscreen">
@@ -241,9 +256,10 @@ export default function TvDisplayClient() {
       </section>
 
       <footer className="tv-footer">
-        {snapshot.torneo?.sponsor_logos.length ? (
-          <div className="tv-sponsors">
-            {snapshot.torneo.sponsor_logos.map((logoPath, idx) => (
+        {footerLogos.length ? (
+          <div className="tv-sponsors-ribbon">
+            <div className="tv-sponsors">
+              {footerLogos.map((logoPath, idx) => (
               <div key={idx} className="tv-sponsor-item">
                 <img
                   src={toAssetUrl(logoPath) ?? ""}
@@ -253,7 +269,8 @@ export default function TvDisplayClient() {
                   }}
                 />
               </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <div className="tv-stats">
