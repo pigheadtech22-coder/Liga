@@ -104,6 +104,26 @@ def _guardar_upload_persistente(uploaded_file, *, folder: str, fallback_dir: Pat
     return ruta_relativa_a_base(out_path)
 
 
+def _migrar_ref_local_a_storage(path_ref: str, *, object_path: str) -> str:
+    """Convierte una referencia local a URL publica de Storage si es posible."""
+    if not path_ref:
+        return ""
+    if is_http_url(path_ref):
+        return path_ref
+    if not storage_enabled():
+        return path_ref
+
+    ruta_local = resolver_ruta(path_ref)
+    if not ruta_local.exists() or not ruta_local.is_file():
+        return path_ref
+
+    try:
+        content = ruta_local.read_bytes()
+        return upload_bytes_to_storage(object_path, content, None)
+    except Exception:
+        return path_ref
+
+
 @st.cache_data(show_spinner=False)
 def _logo_tile_bytes(path_str: str, canvas_w: int = 380, canvas_h: int = 130, padding: int = 14) -> bytes:
     """Normaliza logos a un lienzo blanco uniforme manteniendo proporción."""
@@ -2042,6 +2062,11 @@ elif pagina == "⚙️  Configuración":
                     folder=f"torneos/{tid}/logos",
                     fallback_dir=assets_dir,
                 )
+            else:
+                logo_left_path = _migrar_ref_local_a_storage(
+                    logo_left_path,
+                    object_path=build_storage_object_path(f"torneos/{tid}/logos", file_name="logo_left"),
+                )
 
             logo_right_path = logo_right_actual
             if logo_right_file:
@@ -2050,6 +2075,11 @@ elif pagina == "⚙️  Configuración":
                     folder=f"torneos/{tid}/logos",
                     fallback_dir=assets_dir,
                 )
+            else:
+                logo_right_path = _migrar_ref_local_a_storage(
+                    logo_right_path,
+                    object_path=build_storage_object_path(f"torneos/{tid}/logos", file_name="logo_right"),
+                )
 
             tv_header_logo_path = tv_header_logo_actual
             if tv_header_logo_file:
@@ -2057,6 +2087,11 @@ elif pagina == "⚙️  Configuración":
                     tv_header_logo_file,
                     folder=f"torneos/{tid}/tv",
                     fallback_dir=assets_dir,
+                )
+            else:
+                tv_header_logo_path = _migrar_ref_local_a_storage(
+                    tv_header_logo_path,
+                    object_path=build_storage_object_path(f"torneos/{tid}/tv", file_name="tv_header"),
                 )
 
             sponsor_updates = {}
@@ -2078,6 +2113,14 @@ elif pagina == "⚙️  Configuración":
                         sponsor_dest = assets_dir / f"sponsor_{idx}{sponsor_ext}"
                         sponsor_dest.write_bytes(sponsor_file.getvalue())
                         sponsor_path = ruta_relativa_a_base(sponsor_dest)
+                else:
+                    sponsor_path = _migrar_ref_local_a_storage(
+                        sponsor_path,
+                        object_path=build_storage_object_path(
+                            f"torneos/{tid}/sponsors",
+                            file_name=f"sponsor_{idx}",
+                        ),
+                    )
                 sponsor_updates[f"sponsor_logo_{idx}_path"] = sponsor_path
 
             actualizar_torneo(tid, nombre=nombre, temporada=temporada,
