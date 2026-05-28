@@ -127,6 +127,22 @@ export default function TvDisplayClient() {
     setPageIndex(0);
   }, [query]);
 
+  const footerLogos = useMemo(() => {
+    const candidates = [
+      ...(snapshot?.torneo?.sponsor_logos ?? []),
+      snapshot?.torneo?.logo_left_path ?? null,
+      snapshot?.torneo?.logo_right_path ?? null
+    ]
+      .filter((value): value is string => Boolean(value && value.trim()))
+      .map((value) => value.trim());
+
+    const unique = new Set<string>();
+    for (const item of candidates) {
+      unique.add(item);
+    }
+    return Array.from(unique);
+  }, [snapshot?.torneo]);
+
   if (loading || !snapshot) {
     return (
       <main className="tv-fullscreen">
@@ -162,21 +178,6 @@ export default function TvDisplayClient() {
   }
 
   const presentSet = new Set(snapshot.asistenciaIds);
-  const footerLogos = useMemo(() => {
-    const candidates = [
-      ...(snapshot.torneo?.sponsor_logos ?? []),
-      snapshot.torneo?.logo_left_path ?? null,
-      snapshot.torneo?.logo_right_path ?? null
-    ]
-      .filter((value): value is string => Boolean(value && value.trim()))
-      .map((value) => value.trim());
-
-    const unique = new Set<string>();
-    for (const item of candidates) {
-      unique.add(item);
-    }
-    return Array.from(unique);
-  }, [snapshot.torneo]);
 
   return (
     <main className="tv-fullscreen">
