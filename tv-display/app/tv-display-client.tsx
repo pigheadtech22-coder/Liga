@@ -276,6 +276,15 @@ function CourtCard({
   index: number;
   presentSet: Set<number>;
 }) {
+  const totalGamesA =
+    (court.resultado?.set1_a ?? 0) +
+    (court.resultado?.set2_a ?? 0) +
+    (court.resultado?.set3_a ?? 0);
+  const totalGamesB =
+    (court.resultado?.set1_b ?? 0) +
+    (court.resultado?.set2_b ?? 0) +
+    (court.resultado?.set3_b ?? 0);
+
   return (
     <article
       className="tv-court"
@@ -294,13 +303,17 @@ function CourtCard({
       <div className="tv-players">
         {court.jugadores.map((p) => {
           const present = presentSet.has(p.jugador_id);
+          const playerGames = p.posicion <= 2 ? totalGamesA : totalGamesB;
           return (
             <div
               key={`${court.id}-${p.jugador_id}`}
               className={`tv-player ${present ? "present" : "absent"}`}
             >
               <span className="tv-pos">{p.posicion}</span>
-              <span className="tv-name">{p.nombre}</span>
+              <span className="tv-name-wrap">
+                <span className="tv-name">{p.nombre}</span>
+                {court.resultado ? <span className="tv-player-games">{playerGames}</span> : null}
+              </span>
             </div>
           );
         })}

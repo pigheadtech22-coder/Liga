@@ -393,6 +393,32 @@ body {
   white-space: nowrap;
 }
 
+.tv-name-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.tv-player-games {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(225, 6, 0, 0.18);
+  border: 1px solid rgba(225, 6, 0, 0.45);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* ─── Scores ─── */
 .tv-scores {
   display: flex;
@@ -464,13 +490,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem;
+  padding: 0.2rem;
 }
 
 .tv-sponsor-item img {
   height: 100%;
   width: auto;
-  max-width: 150px;
+  max-width: 300px;
   object-fit: contain;
   display: block;
   filter: brightness(0.95);
