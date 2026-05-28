@@ -248,12 +248,12 @@ export default function TvDisplayClient() {
   }, [snapshot?.torneo]);
 
   const selectedTheme = useMemo(() => {
-    if (themeFromQuery) {
-      return themeFromQuery;
-    }
     const dbTheme = String(snapshot?.torneo?.tv_theme ?? "").toLowerCase();
     if (dbTheme === "ocean" || dbTheme === "sunset" || dbTheme === "apj") {
       return dbTheme;
+    }
+    if (themeFromQuery) {
+      return themeFromQuery;
     }
     return "apj";
   }, [snapshot?.torneo?.tv_theme, themeFromQuery]);
