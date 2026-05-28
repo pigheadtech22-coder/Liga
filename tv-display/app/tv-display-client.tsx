@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import type { TvSnapshot } from "@/lib/tv";
 
 type Court = TvSnapshot["canchas"][number];
@@ -17,6 +18,8 @@ export default function TvDisplayClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const mountedRef = useRef(true);
+  const requestSeqRef = useRef(0);
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -30,14 +33,20 @@ export default function TvDisplayClient() {
   }, [searchParams]);
 
   useEffect(() => {
-    let alive = true;
-    let firstRun = true;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    async function loadSnapshot() {
+  const loadSnapshot = useCallback(
+    async (showLoader = false) => {
+      const seq = ++requestSeqRef.current;
       try {
-        if (firstRun) {
+        if (showLoader) {
           setLoading(true);
         }
+
         const response = await fetch(`/api/tv${query ? `?${query}` : ""}`, {
           cache: "no-store"
         });
@@ -45,33 +54,85 @@ export default function TvDisplayClient() {
           const payload = await response.json().catch(() => null);
           throw new Error(payload?.error ?? "Error cargando TV");
         }
+
         const data = (await response.json()) as TvSnapshot;
-        if (!alive) return;
+        if (!mountedRef.current || seq !== requestSeqRef.current) return;
         setSnapshot(data);
         setError(null);
       } catch (err) {
-        if (!alive) return;
+        if (!mountedRef.current || seq !== requestSeqRef.current) return;
         setError(err instanceof Error ? err.message : "Error desconocido");
       } finally {
-        if (alive && firstRun) {
+        if (showLoader && mountedRef.current && seq === requestSeqRef.current) {
           setLoading(false);
-          firstRun = false;
         }
       }
-    }
-    void loadSnapshot();
-    const interval = window.setInterval(
-      loadSnapshot,
-      Number(process.env.NEXT_PUBLIC_TV_POLL_INTERVAL_MS ?? 12000)
-    );
+    },
+    [query]
+  );
+
+  useEffect(() => {
+    void loadSnapshot(true);
+
+    const interval = window.setInterval(() => {
+      void loadSnapshot(false);
+    }, Number(process.env.NEXT_PUBLIC_TV_POLL_INTERVAL_MS ?? 12000));
+
     return () => {
-      alive = false;
       window.clearInterval(interval);
     };
-  }, [query]);
+  }, [loadSnapshot]);
 
   const assetBaseUrl = (process.env.NEXT_PUBLIC_TV_ASSET_BASE_URL ?? "").trim();
   const loadingBrandUrl = (process.env.NEXT_PUBLIC_TV_LOADING_LOGO_URL ?? "").trim();
+  const realtimeUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+  const realtimeAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+
+  useEffect(() => {
+    if (!realtimeUrl || !realtimeAnonKey) {
+      return;
+    }
+
+    const supabase = createClient(realtimeUrl, realtimeAnonKey);
+    let refreshTimer: number | undefined;
+
+    const triggerRefresh = () => {
+      if (refreshTimer !== undefined) {
+        window.clearTimeout(refreshTimer);
+      }
+      refreshTimer = window.setTimeout(() => {
+        void loadSnapshot(false);
+      }, 250);
+    };
+
+    const channel = supabase.channel(`tv-live-${query || "default"}`);
+    const watchedTables = [
+      "torneos",
+      "jornadas",
+      "canchas_jornada",
+      "asignaciones",
+      "resultados",
+      "asistencia_jornada",
+      "jugadores"
+    ];
+
+    watchedTables.forEach((table) => {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        () => triggerRefresh()
+      );
+    });
+
+    channel.subscribe();
+
+    return () => {
+      if (refreshTimer !== undefined) {
+        window.clearTimeout(refreshTimer);
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [loadSnapshot, query, realtimeAnonKey, realtimeUrl]);
 
   function toAssetUrl(rawPath: string | null | undefined): string | null {
     if (!rawPath) return null;
