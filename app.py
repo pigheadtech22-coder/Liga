@@ -8,7 +8,7 @@ import os
 import io
 import time
 from urllib.parse import urlencode
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -53,6 +53,53 @@ def _mostrar_imagen(path: Path, **kwargs):
             raise
         mtime_ns = path.stat().st_mtime_ns
         st.image(_img_preview_bytes(str(path), mtime_ns), **kwargs)
+
+
+def _mostrar_imagen_ref(path_or_url: str, **kwargs) -> bool:
+    """Muestra una imagen desde URL o ruta local. Retorna True si se pudo mostrar."""
+    if not path_or_url:
+        return False
+    ref = str(path_or_url).strip()
+    if not ref:
+        return False
+
+    if is_http_url(ref):
+        st.image(ref, **kwargs)
+        return True
+
+    ruta = resolver_ruta(ref)
+    if ruta.exists():
+        _mostrar_imagen(ruta, **kwargs)
+        return True
+    return False
+
+
+def _guardar_upload_persistente(uploaded_file, *, folder: str, fallback_dir: Path) -> str:
+    """Guarda archivo en Supabase Storage si esta configurado; fallback a disco local."""
+    if not uploaded_file:
+        return ""
+
+    ext = extension_desde_filename(uploaded_file.name)
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    stem = slugify(Path(uploaded_file.name).stem)
+    out_name = f"{stem}_{stamp}{ext}"
+    payload = uploaded_file.getvalue()
+
+    if storage_enabled():
+        object_path = build_storage_object_path(folder, file_name=out_name)
+        try:
+            return upload_bytes_to_storage(
+                object_path,
+                payload,
+                uploaded_file.type or None,
+            )
+        except Exception as exc:
+            st.warning(f"No se pudo subir a Storage, se guarda local: {exc}")
+
+    fallback_dir.mkdir(parents=True, exist_ok=True)
+    out_path = fallback_dir / out_name
+    out_path.write_bytes(payload)
+    return ruta_relativa_a_base(out_path)
 
 
 @st.cache_data(show_spinner=False)
@@ -224,6 +271,7 @@ def _top_header_strip_bytes(
 
 
 from utils.database import (
+    USE_POSTGRES,
     init_db,
     crear_torneo, listar_torneos, obtener_torneo, actualizar_torneo, eliminar_torneo,
     crear_horarios, listar_horarios,
@@ -243,10 +291,18 @@ from utils.liga_engine import (
 )
 from utils.photo_manager import (
     RemBgNoDisponibleError,
-    guardar_foto_original,
+    extension_desde_filename,
     quitar_fondo_rembg,
     resolver_ruta,
     ruta_relativa_a_base,
+    slugify,
+)
+from utils.storage_manager import (
+    build_storage_object_path,
+    download_url_bytes,
+    is_http_url,
+    storage_enabled,
+    upload_bytes_to_storage,
 )
 from utils.pdf_generator import (
     generar_pdf_jornada,
@@ -268,6 +324,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+if not USE_POSTGRES:
+    st.warning(
+        "DATABASE_URL no esta configurada. Se usa SQLite local y datos/imagenes pueden perderse al reiniciar el hosting.",
+        icon="⚠️",
+    )
 
 st.markdown("""
 <style>
@@ -381,11 +443,8 @@ def cancha_virtual_label(numero: int) -> str:
 
 def mostrar_foto(foto_sin_fondo: str, foto_original: str, size: int = 60):
     for ruta_rel in [foto_sin_fondo, foto_original]:
-        if ruta_rel:
-            ruta = resolver_ruta(ruta_rel)
-            if ruta.exists():
-                _mostrar_imagen(ruta, width=size)
-                return
+        if ruta_rel and _mostrar_imagen_ref(ruta_rel, width=size):
+            return
     st.markdown(
         f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
         f'background:#1e50a0;display:flex;align-items:center;justify-content:center;'
@@ -406,10 +465,8 @@ with st.sidebar:
         if logo_left or pighead_sidebar_right.exists():
             col_logo_1, col_logo_2 = st.columns(2)
             if logo_left:
-                ruta_logo_left = resolver_ruta(logo_left)
-                if ruta_logo_left.exists():
-                    with col_logo_1:
-                        _mostrar_imagen(ruta_logo_left, width=90)
+                with col_logo_1:
+                    _mostrar_imagen_ref(logo_left, width=90)
             if pighead_sidebar_right.exists():
                 with col_logo_2:
                     _mostrar_imagen(pighead_sidebar_right, width=90)
@@ -603,17 +660,17 @@ elif pagina == "🏆  Mi Liga":
                     assets_dir = BASE_DIR / "assets"
                     assets_dir.mkdir(exist_ok=True)
 
-                    logo_left_path = ""
-                    if logo_left_file:
-                        logo_left_dest = assets_dir / logo_left_file.name
-                        logo_left_dest.write_bytes(logo_left_file.getvalue())
-                        logo_left_path = ruta_relativa_a_base(logo_left_dest)
+                    logo_left_path = _guardar_upload_persistente(
+                        logo_left_file,
+                        folder=f"torneos/{slugify(nombre)}/logos",
+                        fallback_dir=assets_dir,
+                    ) if logo_left_file else ""
 
-                    logo_right_path = ""
-                    if logo_right_file:
-                        logo_right_dest = assets_dir / logo_right_file.name
-                        logo_right_dest.write_bytes(logo_right_file.getvalue())
-                        logo_right_path = ruta_relativa_a_base(logo_right_dest)
+                    logo_right_path = _guardar_upload_persistente(
+                        logo_right_file,
+                        folder=f"torneos/{slugify(nombre)}/logos",
+                        fallback_dir=assets_dir,
+                    ) if logo_right_file else ""
 
                     tid = crear_torneo(
                         nombre,
@@ -728,10 +785,7 @@ if pagina == "👥  Jugadores":
             with col_a:
                 st.markdown("**Foto original**")
                 if jug["foto_original"]:
-                    r = resolver_ruta(jug["foto_original"])
-                    if r.exists():
-                        _mostrar_imagen(r, use_container_width=True)
-                    else:
+                    if not _mostrar_imagen_ref(jug["foto_original"], use_container_width=True):
                         st.caption("Archivo no encontrado.")
                 else:
                     st.info("Sin foto cargada.")
@@ -739,10 +793,7 @@ if pagina == "👥  Jugadores":
             with col_b:
                 st.markdown("**Foto sin fondo**")
                 if jug["foto_sin_fondo"]:
-                    r = resolver_ruta(jug["foto_sin_fondo"])
-                    if r.exists():
-                        _mostrar_imagen(r, use_container_width=True)
-                    else:
+                    if not _mostrar_imagen_ref(jug["foto_sin_fondo"], use_container_width=True):
                         st.caption("Archivo no encontrado.")
                 else:
                     st.info("Sin versión sin fondo.")
@@ -755,8 +806,12 @@ if pagina == "👥  Jugadores":
                     if not foto_file:
                         st.warning("Sube una imagen primero.")
                     else:
-                        ruta = guardar_foto_original(nombre_sel, foto_file.name, foto_file.getvalue())
-                        actualizar_jugador(jug["id"], foto_original=ruta_relativa_a_base(ruta))
+                        foto_original_ref = _guardar_upload_persistente(
+                            foto_file,
+                            folder=f"torneos/{tid}/jugadores/{jug['id']}/original",
+                            fallback_dir=BASE_DIR / "assets" / "players",
+                        )
+                        actualizar_jugador(jug["id"], foto_original=foto_original_ref)
                         st.success("Foto guardada.")
                         st.rerun()
             with bc2:
@@ -764,20 +819,52 @@ if pagina == "👥  Jugadores":
                     if not jug["foto_original"]:
                         st.warning("Primero guarda la foto original.")
                     else:
-                        ruta_abs = resolver_ruta(jug["foto_original"])
-                        if not ruta_abs.exists():
-                            st.error("Archivo original no encontrado.")
-                        else:
-                            try:
+                        ruta_abs = None
+                        temporal = None
+                        try:
+                            if is_http_url(jug["foto_original"]):
+                                img_bytes = download_url_bytes(jug["foto_original"])
+                                suffix = extension_desde_filename(jug["foto_original"])
+                                temporal = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+                                temporal.write(img_bytes)
+                                temporal.flush()
+                                ruta_abs = Path(temporal.name)
+                            else:
+                                ruta_abs = resolver_ruta(jug["foto_original"])
+
+                            if not ruta_abs or not ruta_abs.exists():
+                                st.error("Archivo original no encontrado.")
+                            else:
                                 with st.spinner("Procesando con rembg..."):
                                     ruta_nobg = quitar_fondo_rembg(ruta_abs)
-                                actualizar_jugador(jug["id"], foto_sin_fondo=ruta_relativa_a_base(ruta_nobg))
+
+                                foto_nobg_ref = ""
+                                if storage_enabled():
+                                    with open(ruta_nobg, "rb") as fh:
+                                        foto_nobg_ref = upload_bytes_to_storage(
+                                            build_storage_object_path(
+                                                f"torneos/{tid}/jugadores/{jug['id']}/nobg",
+                                                file_name=f"{slugify(nombre_sel)}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png",
+                                            ),
+                                            fh.read(),
+                                            "image/png",
+                                        )
+                                if not foto_nobg_ref:
+                                    foto_nobg_ref = ruta_relativa_a_base(ruta_nobg)
+
+                                actualizar_jugador(jug["id"], foto_sin_fondo=foto_nobg_ref)
                                 st.success("¡Fondo eliminado!")
                                 st.rerun()
-                            except RemBgNoDisponibleError as e:
-                                st.error(str(e))
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                        except RemBgNoDisponibleError as e:
+                            st.error(str(e))
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                        finally:
+                            if temporal is not None:
+                                try:
+                                    Path(temporal.name).unlink(missing_ok=True)
+                                except Exception:
+                                    pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1902,24 +1989,18 @@ elif pagina == "⚙️  Configuración":
         logo_right_actual = torneo.get("logo_right_path", "")
         col_logo_cfg_1, col_logo_cfg_2 = st.columns(2)
         if logo_left_actual:
-            r_left = resolver_ruta(logo_left_actual)
-            if r_left.exists():
-                with col_logo_cfg_1:
-                    _mostrar_imagen(r_left, width=100, caption="Logo izquierdo")
+            with col_logo_cfg_1:
+                _mostrar_imagen_ref(logo_left_actual, width=100, caption="Logo izquierdo")
         if logo_right_actual:
-            r_right = resolver_ruta(logo_right_actual)
-            if r_right.exists():
-                with col_logo_cfg_2:
-                    _mostrar_imagen(r_right, width=100, caption="Logo derecho (solo PDF)")
+            with col_logo_cfg_2:
+                _mostrar_imagen_ref(logo_right_actual, width=100, caption="Logo derecho (solo PDF)")
         logo_left_file = st.file_uploader("Subir logo izquierdo", type=["png", "jpg", "jpeg"], key="cfg_logo_left")
         logo_right_file = st.file_uploader("Subir logo derecho (solo PDF)", type=["png", "jpg", "jpeg"], key="cfg_logo_right")
 
         st.markdown("### Logo cabecera TV")
         tv_header_logo_actual = torneo.get("tv_header_logo_path", "")
         if tv_header_logo_actual:
-            r_tv = resolver_ruta(tv_header_logo_actual)
-            if r_tv.exists():
-                _mostrar_imagen(r_tv, width=300, caption="Cabecera TV actual")
+            _mostrar_imagen_ref(tv_header_logo_actual, width=300, caption="Cabecera TV actual")
         tv_header_logo_file = st.file_uploader(
             "Subir logo/banner para la cabecera de Pantalla TV",
             type=["png", "jpg", "jpeg"],
@@ -1939,9 +2020,7 @@ elif pagina == "⚙️  Configuración":
                 sponsor_actual = sponsor_actuales[idx - 1]
                 with cols_sponsor[col_idx]:
                     if sponsor_actual:
-                        r_sponsor = resolver_ruta(sponsor_actual)
-                        if r_sponsor.exists():
-                            _mostrar_imagen(r_sponsor, width=90, caption=f"Sponsor {idx}")
+                        _mostrar_imagen_ref(sponsor_actual, width=90, caption=f"Sponsor {idx}")
                     sponsor_files.append(
                         st.file_uploader(
                             f"Sponsor {idx}",
@@ -1956,30 +2035,38 @@ elif pagina == "⚙️  Configuración":
 
             logo_left_path = logo_left_actual
             if logo_left_file:
-                logo_left_dest = assets_dir / logo_left_file.name
-                logo_left_dest.write_bytes(logo_left_file.getvalue())
-                logo_left_path = ruta_relativa_a_base(logo_left_dest)
+                logo_left_path = _guardar_upload_persistente(
+                    logo_left_file,
+                    folder=f"torneos/{tid}/logos",
+                    fallback_dir=assets_dir,
+                )
 
             logo_right_path = logo_right_actual
             if logo_right_file:
-                logo_right_dest = assets_dir / logo_right_file.name
-                logo_right_dest.write_bytes(logo_right_file.getvalue())
-                logo_right_path = ruta_relativa_a_base(logo_right_dest)
+                logo_right_path = _guardar_upload_persistente(
+                    logo_right_file,
+                    folder=f"torneos/{tid}/logos",
+                    fallback_dir=assets_dir,
+                )
 
             tv_header_logo_path = tv_header_logo_actual
             if tv_header_logo_file:
-                tv_header_dest = assets_dir / tv_header_logo_file.name
-                tv_header_dest.write_bytes(tv_header_logo_file.getvalue())
-                tv_header_logo_path = ruta_relativa_a_base(tv_header_dest)
+                tv_header_logo_path = _guardar_upload_persistente(
+                    tv_header_logo_file,
+                    folder=f"torneos/{tid}/tv",
+                    fallback_dir=assets_dir,
+                )
 
             sponsor_updates = {}
             for idx in range(1, 9):
                 sponsor_path = sponsor_actuales[idx - 1]
                 sponsor_file = sponsor_files[idx - 1]
                 if sponsor_file:
-                    sponsor_dest = assets_dir / sponsor_file.name
-                    sponsor_dest.write_bytes(sponsor_file.getvalue())
-                    sponsor_path = ruta_relativa_a_base(sponsor_dest)
+                    sponsor_path = _guardar_upload_persistente(
+                        sponsor_file,
+                        folder=f"torneos/{tid}/sponsors",
+                        fallback_dir=assets_dir,
+                    )
                 sponsor_updates[f"sponsor_logo_{idx}_path"] = sponsor_path
 
             actualizar_torneo(tid, nombre=nombre, temporada=temporada,
