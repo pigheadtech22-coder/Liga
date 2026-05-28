@@ -12,6 +12,8 @@ type PageGroup = {
   courts: Court[];
 };
 
+const HARDCODED_LOADING_BRAND_URL = "/api/asset/assets/Pighead%20blanco%20(1).png";
+
 function horarioSortValue(horario: string | null): number {
   const raw = String(horario ?? "").trim().toLowerCase();
   if (!raw) return Number.MAX_SAFE_INTEGER;
@@ -31,7 +33,6 @@ export default function TvDisplayClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const [savedLoadingBrandUrl, setSavedLoadingBrandUrl] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
 
@@ -106,14 +107,8 @@ export default function TvDisplayClient() {
   }, [loadSnapshot]);
 
   const assetBaseUrl = (process.env.NEXT_PUBLIC_TV_ASSET_BASE_URL ?? "").trim();
-  const loadingBrandUrl = (process.env.NEXT_PUBLIC_TV_LOADING_LOGO_URL ?? "").trim();
   const realtimeUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const realtimeAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
-  const brandStorageKey = useMemo(() => {
-    const torneoId = searchParams.get("torneo_id")?.trim();
-    const tvToken = searchParams.get("tv")?.trim();
-    return `tv-loading-brand:${torneoId || tvToken || "default"}`;
-  }, [searchParams]);
 
   useEffect(() => {
     if (!realtimeUrl || !realtimeAnonKey) {
@@ -181,43 +176,10 @@ export default function TvDisplayClient() {
     return `/api/asset/${rel}`;
   }
 
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(brandStorageKey);
-      setSavedLoadingBrandUrl(saved && saved.trim() ? saved.trim() : null);
-    } catch {
-      setSavedLoadingBrandUrl(null);
-    }
-  }, [brandStorageKey]);
-
-  const effectiveLoadingBrandUrl = useMemo(() => {
-    const dbBrand =
-      toAssetUrl(snapshot?.torneo?.tv_header_logo_path) ??
-      toAssetUrl(snapshot?.torneo?.logo_left_path) ??
-      toAssetUrl(snapshot?.torneo?.logo_right_path);
-
-    return dbBrand ?? savedLoadingBrandUrl ?? (loadingBrandUrl || null);
-  }, [loadingBrandUrl, savedLoadingBrandUrl, snapshot?.torneo?.logo_left_path, snapshot?.torneo?.logo_right_path, snapshot?.torneo?.tv_header_logo_path]);
-
-  useEffect(() => {
-    if (!effectiveLoadingBrandUrl) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(brandStorageKey, effectiveLoadingBrandUrl);
-    } catch {
-      // Ignore storage failures and keep runtime behavior unchanged.
-    }
-  }, [brandStorageKey, effectiveLoadingBrandUrl]);
-
   function LoadingBrand() {
-    if (!effectiveLoadingBrandUrl) {
-      return <div className="tv-brand-mark">🏓</div>;
-    }
     return (
       <img
-        src={effectiveLoadingBrandUrl}
+        src={HARDCODED_LOADING_BRAND_URL}
         alt="Marca"
         className="tv-loading-brand"
         onError={(e) => {
