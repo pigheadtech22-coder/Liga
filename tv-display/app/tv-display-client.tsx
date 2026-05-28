@@ -12,7 +12,8 @@ type PageGroup = {
   courts: Court[];
 };
 
-const HARDCODED_LOADING_BRAND_URL = "/api/asset/assets/Pighead%20blanco%20(1).png";
+const HARDCODED_LOADING_BRAND_URL =
+  "https://raw.githubusercontent.com/pigheadtech22-coder/Liga/main/assets/Pighead%20blanco%20(1).png";
 
 function horarioSortValue(horario: string | null): number {
   const raw = String(horario ?? "").trim().toLowerCase();
