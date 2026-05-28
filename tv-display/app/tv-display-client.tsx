@@ -276,14 +276,24 @@ function CourtCard({
   index: number;
   presentSet: Set<number>;
 }) {
-  const totalGamesA =
-    (court.resultado?.set1_a ?? 0) +
-    (court.resultado?.set2_a ?? 0) +
-    (court.resultado?.set3_a ?? 0);
-  const totalGamesB =
-    (court.resultado?.set1_b ?? 0) +
-    (court.resultado?.set2_b ?? 0) +
-    (court.resultado?.set3_b ?? 0);
+  const s1a = court.resultado?.set1_a ?? 0;
+  const s1b = court.resultado?.set1_b ?? 0;
+  const s2a = court.resultado?.set2_a ?? 0;
+  const s2b = court.resultado?.set2_b ?? 0;
+  const s3a = court.resultado?.set3_a ?? 0;
+  const s3b = court.resultado?.set3_b ?? 0;
+
+  function totalGamesByPosicion(posicion: number): number {
+    // Formato americano:
+    // Set1: P1+P2 vs P3+P4
+    // Set2: P1+P3 vs P2+P4
+    // Set3: P1+P4 vs P2+P3
+    if (posicion === 1) return s1a + s2a + s3a;
+    if (posicion === 2) return s1a + s2b + s3b;
+    if (posicion === 3) return s1b + s2a + s3b;
+    if (posicion === 4) return s1b + s2b + s3a;
+    return 0;
+  }
 
   return (
     <article
@@ -303,7 +313,7 @@ function CourtCard({
       <div className="tv-players">
         {court.jugadores.map((p) => {
           const present = presentSet.has(p.jugador_id);
-          const playerGames = p.posicion <= 2 ? totalGamesA : totalGamesB;
+          const playerGames = totalGamesByPosicion(p.posicion);
           return (
             <div
               key={`${court.id}-${p.jugador_id}`}
