@@ -994,15 +994,17 @@ elif pagina == "📅  Jornadas":
                     ),
                 )
 
-                st.caption("Las ausencias y penalizaciones se cargan luego en Resultados.")
+                st.caption("El movimiento considera penalizaciones de la jornada base (si existen).")
                 jornada_base = max(jornadas, key=lambda j: j["numero"])
                 canchas_base = obtener_canchas_jornada(jornada_base["id"])
+                penalizaciones_base = obtener_ausencias_jornada(jornada_base["id"])
                 ranking_previo = calcular_ranking(tid)
                 try:
                     canchas_gen = generar_canchas_por_movimiento(
                         canchas_base,
                         int(movimiento),
                         ranking_previo=ranking_previo,
+                        penalizaciones_jornada=penalizaciones_base,
                     )
                 except ValueError:
                     # Fallback para casos especiales (sin resultados completos, etc.).

@@ -161,6 +161,7 @@ def generar_canchas_por_movimiento(
     canchas_previas: list[dict],
     jugadores_a_mover: int,
     ranking_previo: list[dict] | None = None,
+    penalizaciones_jornada: dict[int, int] | None = None,
 ) -> list[list[dict]]:
     """
     Genera la siguiente jornada intercambiando jugadores entre canchas contiguas.
@@ -170,6 +171,8 @@ def generar_canchas_por_movimiento(
     - Si jugadores_a_mover = 2: suben 2 (mejores) y bajan 2 (peores).
 
     Requiere canchas con 4 jugadores y resultado cargado en cada una.
+    Si se provee penalizaciones_jornada ({jugador_id: penalizacion}),
+    se suma al puntaje de cancha para decidir sube/baja.
     """
     if jugadores_a_mover not in (1, 2):
         raise ValueError("jugadores_a_mover debe ser 1 o 2")
@@ -178,6 +181,10 @@ def generar_canchas_por_movimiento(
     pos_map = {
         int(r["id"]): int(r.get("posicion", 999999))
         for r in (ranking_previo or [])
+    }
+    pen_map = {
+        int(jid): int(pen)
+        for jid, pen in (penalizaciones_jornada or {}).items()
     }
     ranking_por_cancha: list[list[dict]] = []
 
@@ -195,11 +202,14 @@ def generar_canchas_por_movimiento(
 
         jugadores_rank = []
         for idx, jug in enumerate(jugadores):
+            jug_id = int(jug["jugador_id"])
+            puntos_cancha = int(pts[idx])
+            penalizacion = int(pen_map.get(jug_id, 0))
             jugadores_rank.append(
                 {
-                    "id": jug["jugador_id"],
+                    "id": jug_id,
                     "nombre": jug["nombre"],
-                    "puntos": pts[idx],
+                    "puntos": puntos_cancha + penalizacion,
                 }
             )
 
